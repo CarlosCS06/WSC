@@ -1,5 +1,4 @@
 import { dataPackSchema } from '../schemas/dataPackSchema'
-import { z } from 'zod'
 
 export async function loadDataPack(path: string) {
   const response = await fetch(path)
