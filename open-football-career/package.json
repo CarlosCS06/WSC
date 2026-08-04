@@ -3,12 +3,16 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+
   "scripts": {
     "dev": "vite --port 5174",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
+    "test": "vitest",
+    "test:run": "vitest run",
     "preview": "vite preview"
   },
+
   "dependencies": {
     "dexie": "^4.4.4",
     "dexie-react-hooks": "^4.4.0",
