@@ -1,0 +1,34 @@
+[
+  {
+    "id": "DEM_1",
+    "name": "Liga Demo",
+    "shortName": "Primera DEM",
+    "associationId": "DEM",
+    "type": "LEAGUE",
+    "level": 1,
+    "participantClubIds": [
+      "DEMO_ATLETICO",
+      "DEMO_UNION",
+      "DEMO_CITY",
+      "DEMO_SPORTING"
+    ],
+    "stages": [
+      {
+        "id": "REGULAR_SEASON",
+        "type": "ROUND_ROBIN",
+        "rounds": 2,
+        "pointsForWin": 3,
+        "pointsForDraw": 1,
+        "pointsForLoss": 0,
+        "tiebreakers": [
+          "POINTS",
+          "GOAL_DIFFERENCE",
+          "GOALS_FOR",
+          "WINS"
+        ]
+      }
+    ],
+    "promotionRules": [],
+    "relegationRules": []
+  }
+]

@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "0.1.0",
+  "packId": "demo-2026",
+  "name": "Demo League 2026",
+  "season": "2026-27",
+  "author": "Open Football Career",
+  "language": "es",
+  "files": {
+    "clubs": "clubs.json",
+    "players": "players.json",
+    "competitions": "competitions.json"
+  }
+}
