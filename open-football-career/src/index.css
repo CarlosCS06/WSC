@@ -116,3 +116,219 @@ button {
   font-size: 12px;
   color: #89938d;
 }
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.game-page {
+  min-height: 100vh;
+  padding: 30px 20px;
+}
+
+.game-container {
+  width: min(1100px, 100%);
+  margin: 0 auto;
+  padding: 28px;
+  border-radius: 24px;
+  background: rgba(245, 248, 246, 0.97);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.32);
+}
+
+.page-header {
+  margin: 25px 0;
+}
+
+.page-header h1,
+.career-header h1,
+.section-heading h2 {
+  margin: 4px 0;
+  color: #10251a;
+}
+
+.back-button {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: #146837;
+  font-weight: 700;
+}
+
+.club-grid {
+  display: grid;
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(220px, 1fr)
+  );
+  gap: 16px;
+}
+
+.club-card {
+  display: grid;
+  gap: 10px;
+  padding: 22px;
+  border: 1px solid #d7e1da;
+  border-radius: 16px;
+  background: white;
+  cursor: pointer;
+  text-align: left;
+  transition:
+    transform 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.club-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 24px rgba(13, 61, 34, 0.14);
+}
+
+.club-badge {
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background: #168447;
+  color: white;
+  font-weight: 800;
+}
+
+.career-container {
+  display: grid;
+  gap: 20px;
+}
+
+.career-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.exit-button,
+.simulate-button {
+  width: auto;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(150px, 1fr)
+  );
+  gap: 14px;
+}
+
+.summary-card,
+.content-panel {
+  padding: 20px;
+  border: 1px solid #dbe5de;
+  border-radius: 16px;
+  background: white;
+}
+
+.summary-card {
+  display: grid;
+  gap: 5px;
+}
+
+.summary-card span {
+  color: #68746d;
+}
+
+.summary-card strong {
+  font-size: 24px;
+  color: #173324;
+}
+
+.section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.fixtures-list {
+  display: grid;
+  gap: 10px;
+}
+
+.fixture-row {
+  display: grid;
+  grid-template-columns: 1fr 70px 1fr;
+  align-items: center;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 10px;
+  background: #f1f6f3;
+}
+
+.fixture-row span:last-child {
+  text-align: right;
+}
+
+.fixture-row strong {
+  text-align: center;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+.standings-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.standings-table th,
+.standings-table td {
+  padding: 11px 9px;
+  border-bottom: 1px solid #e2e9e4;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.standings-table th:nth-child(2),
+.standings-table td:nth-child(2) {
+  text-align: left;
+}
+
+.managed-team-row {
+  background: #e7f6ec;
+}
+
+.season-finished {
+  padding: 24px;
+  border-radius: 14px;
+  background: #e7f6ec;
+  text-align: center;
+}
+
+@media (max-width: 650px) {
+  .game-page {
+    padding: 10px;
+  }
+
+  .game-container {
+    padding: 18px;
+    border-radius: 16px;
+  }
+
+  .career-header,
+  .section-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .exit-button,
+  .simulate-button {
+    width: 100%;
+  }
+
+  .fixture-row {
+    grid-template-columns: 1fr 50px 1fr;
+    font-size: 14px;
+  }
+}

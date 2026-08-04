@@ -1,44 +1,49 @@
-import { useState } from "react";
+interface MainMenuPageProps {
+  onNewCareer: () => void;
+}
 
-export function MainMenuPage() {
-  const [message, setMessage] = useState("");
-
+export function MainMenuPage({
+  onNewCareer,
+}: MainMenuPageProps) {
   return (
     <main className="main-menu">
       <section className="menu-card">
-        <p className="menu-subtitle">SIMULADOR DE FÚTBOL</p>
+        <p className="menu-subtitle">
+          SIMULADOR DE FÚTBOL
+        </p>
 
         <h1>Open Football Career</h1>
 
         <p className="menu-description">
-          Construye tu carrera, dirige clubes y compite en ligas de todo el
-          mundo.
+          Construye tu carrera, dirige clubes y compite en
+          ligas de todo el mundo.
         </p>
 
         <div className="menu-actions">
           <button
             className="primary-button"
-            onClick={() => setMessage("Nueva carrera seleccionada")}
+            type="button"
+            onClick={onNewCareer}
           >
             Nueva carrera
           </button>
 
           <button
             className="secondary-button"
-            onClick={() => setMessage("Todavía no hay partidas guardadas")}
+            type="button"
+            disabled
           >
             Cargar partida
           </button>
 
           <button
             className="secondary-button"
-            onClick={() => setMessage("Editor de data packs próximamente")}
+            type="button"
+            disabled
           >
             Data packs
           </button>
         </div>
-
-        {message && <p className="menu-message">{message}</p>}
 
         <p className="version">Versión 0.1.0</p>
       </section>
