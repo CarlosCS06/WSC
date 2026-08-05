@@ -1,14 +1,21 @@
 export type MatchEventType =
   | "KICK_OFF"
-  | "GOAL"
-  | "HALF_TIME"
-  | "FULL_TIME"
+  | "FOUL"
+  | "YELLOW_CARD"
+  | "SECOND_YELLOW_CARD"
+  | "RED_CARD"
   | "INJURY"
   | "SUBSTITUTION"
-  | "RED_CARD"
-  | "SECOND_YELLOW_CARD"
-  | "PENALTY_AWARDED";
-  
+  | "GOAL"
+  | "HALF_TIME"
+  | "SECOND_HALF"
+  | "FULL_TIME";
+
+export type InjurySeverity =
+  | "KNOCK"
+  | "MINOR"
+  | "MODERATE"
+  | "SERIOUS";
 
 export interface MatchEvent {
   id: string;
@@ -18,7 +25,9 @@ export interface MatchEvent {
 
   clubId?: string;
   playerId?: string;
+  secondaryPlayerId?: string;
   assistPlayerId?: string;
 
+  injurySeverity?: InjurySeverity;
   description: string;
 }

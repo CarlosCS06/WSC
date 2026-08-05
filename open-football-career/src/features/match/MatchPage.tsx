@@ -13,6 +13,8 @@ import type { MatchClockState, MatchSpeed } from "../../domain/matchClock";
 
 import { formatMatchClock } from "../../core/match/formatMatchClock";
 import { calculateAddedTime } from "../../core/match/calculateAddedTime";
+import type { MatchDecision } from "../../domain/matchDecision";
+import { InjurySubstitutionPanel } from "./InjurySubstitutionPanel";
 
 interface MatchPageProps {
   fixture: Fixture;
@@ -39,6 +41,12 @@ export function MatchPage({
 }: MatchPageProps) {
   const [simulation, setSimulation] =
     useState<SimulatedMatchWithEvents | null>(null);
+
+  const [pendingDecision, setPendingDecision] =
+    useState<MatchDecision | null>(null);
+
+  const [processedEventIds, setProcessedEventIds] =
+    useState<Set<string>>(new Set());
 
   type MatchPlaybackStatus =
   | "PRE_MATCH"
@@ -69,6 +77,65 @@ export function MatchPage({
       event.minute <= currentMinute,
     );
   }, [simulation, currentMinute]);
+
+  const latestVisibleEvent =
+    visibleEvents[visibleEvents.length - 1];
+
+  useEffect(() => {
+    if (
+      !latestVisibleEvent ||
+      processedEventIds.has(latestVisibleEvent.id)
+    ) {
+      return;
+    }
+
+    setProcessedEventIds((current) => {
+      const updated = new Set(current);
+      updated.add(latestVisibleEvent.id);
+      return updated;
+    });
+
+    if (
+      latestVisibleEvent.type !== "INJURY" ||
+      latestVisibleEvent.clubId !== managedClubId ||
+      !latestVisibleEvent.playerId
+    ) {
+      return;
+    }
+
+    const requiresSubstitution =
+      latestVisibleEvent.injurySeverity === "MODERATE" ||
+      latestVisibleEvent.injurySeverity === "SERIOUS";
+
+    if (!requiresSubstitution) {
+      return;
+    }
+
+    const managedLineup =
+      managedClubId === homeClub.id
+        ? homeLineup
+        : awayLineup;
+
+    setPendingDecision({
+      type: "USER_INJURY_SUBSTITUTION",
+      clubId: managedClubId,
+      injuredPlayerId: latestVisibleEvent.playerId,
+      availableSubstituteIds: managedLineup.substitutes,
+      minute: latestVisibleEvent.minute,
+    });
+  }, [
+    latestVisibleEvent,
+    managedClubId,
+    homeClub.id,
+    homeLineup,
+    awayLineup,
+    processedEventIds,
+  ]);
+
+  useEffect(() => {
+    // placeholder: `pendingDecision` will be handled by UI/logic later
+    if (!pendingDecision) return;
+  }, [pendingDecision]);
 
   const currentScore = calculateVisibleScore(
     visibleEvents,
@@ -107,6 +174,48 @@ export function MatchPage({
       firstHalfAddedMinutes,
       secondHalfAddedMinutes,
     }));
+  }
+
+  function handleInjurySubstitution(
+    substitutePlayerId: string,
+  ) {
+    if (!pendingDecision || !simulation) {
+      return;
+    }
+
+    const injuredPlayer = players.find(
+      (player) =>
+        player.id === pendingDecision.injuredPlayerId,
+    );
+
+    const substitutePlayer = players.find(
+      (player) => player.id === substitutePlayerId,
+    );
+
+    if (!injuredPlayer || !substitutePlayer) {
+      return;
+    }
+
+    const substitutionEvent: MatchEvent = {
+      id: `${fixture.id}_USER_SUB_${pendingDecision.minute}`,
+      fixtureId: fixture.id,
+      minute: pendingDecision.minute,
+      type: "SUBSTITUTION" as const,
+      clubId: managedClubId,
+      playerId: injuredPlayer.id,
+      secondaryPlayerId: substitutePlayer.id,
+      description:
+        `Sale ${injuredPlayer.shortName} y entra ` +
+        `${substitutePlayer.shortName}.`,
+    };
+
+    setSimulation({
+      ...simulation,
+      events: [...simulation.events, substitutionEvent]
+        .sort((a, b) => a.minute - b.minute),
+    });
+
+    setPendingDecision(null);
   }
 
   useEffect(() => {
@@ -161,6 +270,10 @@ export function MatchPage({
       clock.period === "SECOND_HALF";
 
     if (!isRunning) {
+      return;
+    }
+
+    if (pendingDecision) {
       return;
     }
 
@@ -341,6 +454,13 @@ export function MatchPage({
 
             {clock.period === "HALF_TIME" && (
               <section className="half-time-panel">
+            {pendingDecision && (
+              <InjurySubstitutionPanel
+                decision={pendingDecision}
+                players={players}
+                onConfirm={handleInjurySubstitution}
+              />
+            )}
                 <p className="menu-subtitle">DESCANSO</p>
 
                 <h2>

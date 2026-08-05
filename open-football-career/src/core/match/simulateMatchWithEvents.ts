@@ -4,6 +4,7 @@ import type { Lineup } from "../../domain/lineup";
 import type { MatchEvent } from "../../domain/matchEvent";
 import type { Player } from "../../domain/player";
 import { simulateMatch } from "./simulateMatch";
+import { generateMatchIncidents } from "./generateMatchIncidents";
 
 export interface SimulatedMatchWithEvents {
   fixtureId: string;
@@ -144,6 +145,13 @@ export function simulateMatchWithEvents(
     "AWAY",
   );
 
+  const incidentEvents = generateMatchIncidents({
+    fixtureId: fixture.id,
+    homeLineup,
+    awayLineup,
+    players,
+  });
+
   const events: MatchEvent[] = [
     {
       id: `${fixture.id}_KICK_OFF`,
@@ -154,12 +162,20 @@ export function simulateMatchWithEvents(
     },
     ...homeGoalEvents,
     ...awayGoalEvents,
+    ...incidentEvents,
     {
       id: `${fixture.id}_HALF_TIME`,
       fixtureId: fixture.id,
       minute: 45,
       type: "HALF_TIME" as const,
       description: "Descanso.",
+    },
+    {
+      id: `${fixture.id}_SECOND_HALF`,
+      fixtureId: fixture.id,
+      minute: 46,
+      type: "SECOND_HALF" as const,
+      description: "Comienza la segunda parte.",
     },
     {
       id: `${fixture.id}_FULL_TIME`,
@@ -175,14 +191,16 @@ export function simulateMatchWithEvents(
 
     const priority: Record<MatchEvent["type"], number> = {
       KICK_OFF: 0,
-      INJURY: 1,
-      SUBSTITUTION: 1,
-      RED_CARD: 1,
-      SECOND_YELLOW_CARD: 1,
-      PENALTY_AWARDED: 1,
-      GOAL: 2,
-      HALF_TIME: 3,
-      FULL_TIME: 4,
+      FOUL: 1,
+      YELLOW_CARD: 2,
+      SECOND_YELLOW_CARD: 3,
+      RED_CARD: 4,
+      INJURY: 5,
+      SUBSTITUTION: 6,
+      GOAL: 7,
+      HALF_TIME: 8,
+      SECOND_HALF: 9,
+      FULL_TIME: 10,
     };
 
     return (

@@ -605,4 +605,51 @@ button,
   background: #168447;
   color: white;
 }
+
+.injury-decision-panel {
+  display: grid;
+  gap: 16px;
+  padding: 22px;
+  border: 2px solid #b5483b;
+  border-radius: 16px;
+  background: #fff5f3;
+}
+
+.injury-decision-panel h2,
+.injury-decision-panel p {
+  margin: 0;
+}
+
+.substitute-options {
+  display: grid;
+  gap: 10px;
+}
+
+.substitute-option {
+  display: grid;
+  grid-template-columns: 45px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 54px;
+  padding: 10px 14px;
+  border: 1px solid #d7e1da;
+  border-radius: 10px;
+  background: white;
+  cursor: pointer;
+  text-align: left;
+}
+
+.substitute-option:hover {
+  border-color: #168447;
+  background: #edf7f0;
+}
+
+.substitute-option span {
+  font-weight: 800;
+  color: #168447;
+}
+
+.substitute-option small {
+  white-space: nowrap;
+}
 }
