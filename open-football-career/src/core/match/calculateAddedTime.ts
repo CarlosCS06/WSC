@@ -34,7 +34,8 @@ export function calculateAddedTime({
         addedMinutes += 0.5;
         break;
 
-      case "PENALTY_AWARDED":
+      case "FOUL":
+        // Fouls (and potential penalties) stop play briefly
         addedMinutes += 0.5;
         break;
 

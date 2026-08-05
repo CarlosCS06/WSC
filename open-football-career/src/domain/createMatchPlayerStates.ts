@@ -1,6 +1,6 @@
-import type { Lineup } from "../../domain/lineup";
-import type { MatchPlayerState } from "../../domain/matchPlayerState";
-import type { Player } from "../../domain/player";
+import type { Lineup } from "./lineup";
+import type { MatchPlayerState } from "./matchPlayerState";
+import type { Player } from "./player";
 
 interface CreateMatchPlayerStatesInput {
   homeLineup: Lineup;
