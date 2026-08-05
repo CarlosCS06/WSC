@@ -10,11 +10,16 @@ import {
 import type { Lineup } from "../../domain/lineup";
 import type { Player } from "../../domain/player";
 import type { MatchClockState, MatchSpeed } from "../../domain/matchClock";
+import type { MatchPlayerState } from "../../domain/matchPlayerState";
+import { createLivePlayerStates } from "../../core/match/createLivePlayerStates";
+import { applyMatchEvent } from "../../core/match/applyMatchEvent";
+import { selectCpuSubstitute } from "../../core/match/selectCpuSubstitute";
 
 import { formatMatchClock } from "../../core/match/formatMatchClock";
 import { calculateAddedTime } from "../../core/match/calculateAddedTime";
 import type { MatchDecision } from "../../domain/matchDecision";
 import { InjurySubstitutionPanel } from "./InjurySubstitutionPanel";
+
 
 interface MatchPageProps {
   fixture: Fixture;
@@ -47,7 +52,9 @@ export function MatchPage({
 
   const [processedEventIds, setProcessedEventIds] =
     useState<Set<string>>(new Set());
-
+  const [playerStates, setPlayerStates] =
+    useState<MatchPlayerState[]>([]);
+  
   type MatchPlaybackStatus =
   | "PRE_MATCH"
   | "PLAYING_FIRST_HALF"
@@ -78,60 +85,146 @@ export function MatchPage({
     );
   }, [simulation, currentMinute]);
 
-  const latestVisibleEvent =
-    visibleEvents[visibleEvents.length - 1];
 
   useEffect(() => {
-    if (
-      !latestVisibleEvent ||
-      processedEventIds.has(latestVisibleEvent.id)
-    ) {
+    if (!simulation || playerStates.length === 0) {
       return;
     }
+
+    const newEvents = visibleEvents.filter(
+      (event) => !processedEventIds.has(event.id),
+    );
+
+    if (newEvents.length === 0) {
+      return;
+    }
+
+    let nextPlayerStates = playerStates;
+    let nextEvents = [...simulation.events];
+    let nextDecision = pendingDecision;
+
+    const newlyProcessedIds: string[] = [];
+
+    for (const event of newEvents) {
+      const result = applyMatchEvent(
+        nextPlayerStates,
+        event,
+      );
+
+      nextPlayerStates = result.playerStates;
+      newlyProcessedIds.push(event.id);
+
+      if (result.convertedEvent.type !== event.type) {
+        nextEvents = nextEvents.map((existingEvent) =>
+          existingEvent.id === event.id
+            ? result.convertedEvent
+            : existingEvent,
+        );
+      }
+
+      const requiresSubstitution =
+        event.type === "INJURY" &&
+        (event.injurySeverity === "MODERATE" ||
+          event.injurySeverity === "SERIOUS") &&
+        event.playerId &&
+        event.clubId;
+
+      if (!requiresSubstitution) {
+        continue;
+      }
+
+      if (event.clubId === managedClubId) {
+        const availableSubstituteIds = nextPlayerStates
+          .filter(
+            (state) =>
+              state.clubId === managedClubId &&
+              state.isAvailable &&
+              !state.injured &&
+              !state.sentOff,
+          )
+          .map((state) => state.playerId);
+
+            nextDecision = {
+          type: "USER_INJURY_SUBSTITUTION",
+          clubId: managedClubId,
+          injuredPlayerId: event.playerId!,
+          availableSubstituteIds,
+          minute: event.minute,
+        };
+
+        break;
+      }
+
+      const substitute = selectCpuSubstitute({
+        injuredPlayerId: event.playerId!,
+        clubId: event.clubId!,
+        playerStates: nextPlayerStates,
+        players,
+      });
+
+      if (!substitute) {
+        continue;
+      }
+
+      const injuredPlayer = players.find(
+        (player) => player.id === event.playerId,
+      );
+
+      const substitutionEvent: MatchEvent = {
+        id: `${fixture.id}_CPU_SUB_${event.id}`,
+        fixtureId: fixture.id,
+        minute: event.minute,
+        type: "SUBSTITUTION",
+        clubId: event.clubId!,
+        playerId: event.playerId!,
+        secondaryPlayerId: substitute.id,
+        description:
+          `Sale ${injuredPlayer?.shortName ?? "el jugador"} y entra ` +
+          `${substitute.shortName}.`,
+      };
+
+      const substitutionResult = applyMatchEvent(
+        nextPlayerStates,
+        substitutionEvent,
+      );
+
+      nextPlayerStates =
+        substitutionResult.playerStates;
+
+      nextEvents.push(substitutionEvent);
+    }
+
+    setPlayerStates(nextPlayerStates);
+    setPendingDecision(nextDecision);
 
     setProcessedEventIds((current) => {
       const updated = new Set(current);
-      updated.add(latestVisibleEvent.id);
+
+      for (const id of newlyProcessedIds) {
+        updated.add(id);
+      }
+
       return updated;
     });
 
-    if (
-      latestVisibleEvent.type !== "INJURY" ||
-      latestVisibleEvent.clubId !== managedClubId ||
-      !latestVisibleEvent.playerId
-    ) {
-      return;
+    if (nextEvents.length !== simulation.events.length) {
+      setSimulation({
+        ...simulation,
+        events: nextEvents.sort(
+          (a, b) => a.minute - b.minute,
+        ),
+      });
     }
-
-    const requiresSubstitution =
-      latestVisibleEvent.injurySeverity === "MODERATE" ||
-      latestVisibleEvent.injurySeverity === "SERIOUS";
-
-    if (!requiresSubstitution) {
-      return;
-    }
-
-    const managedLineup =
-      managedClubId === homeClub.id
-        ? homeLineup
-        : awayLineup;
-
-    setPendingDecision({
-      type: "USER_INJURY_SUBSTITUTION",
-      clubId: managedClubId,
-      injuredPlayerId: latestVisibleEvent.playerId,
-      availableSubstituteIds: managedLineup.substitutes,
-      minute: latestVisibleEvent.minute,
-    });
   }, [
-    latestVisibleEvent,
-    managedClubId,
-    homeClub.id,
-    homeLineup,
-    awayLineup,
+    visibleEvents,
+    simulation,
+    playerStates,
     processedEventIds,
+    pendingDecision,
+    managedClubId,
+    players,
+    fixture.id,
   ]);
-
   useEffect(() => {
     // placeholder: `pendingDecision` will be handled by UI/logic later
     if (!pendingDecision) return;
@@ -152,6 +245,16 @@ export function MatchPage({
       awayLineup,
       players,
     );
+
+    setPlayerStates(
+      createLivePlayerStates({
+        homeLineup,
+        awayLineup,
+        players,
+      }),
+    );
+
+    setProcessedEventIds(new Set());
 
     const firstHalfAddedMinutes = calculateAddedTime({
       events: result.events,
@@ -216,6 +319,13 @@ export function MatchPage({
     });
 
     setPendingDecision(null);
+
+    const result = applyMatchEvent(
+    playerStates,
+    substitutionEvent,
+    );
+
+    setPlayerStates(result.playerStates);
   }
 
   useEffect(() => {
@@ -319,7 +429,7 @@ export function MatchPage({
     }, 100);
 
     return () => window.clearInterval(intervalId);
-  }, [simulation, clock.period]);
+  }, [simulation, clock.period, pendingDecision,]);
 
   return (
     <main className="game-page">
@@ -452,8 +562,6 @@ export function MatchPage({
               ))}
             </section>
 
-            {clock.period === "HALF_TIME" && (
-              <section className="half-time-panel">
             {pendingDecision && (
               <InjurySubstitutionPanel
                 decision={pendingDecision}
@@ -461,6 +569,9 @@ export function MatchPage({
                 onConfirm={handleInjurySubstitution}
               />
             )}
+
+            {clock.period === "HALF_TIME" && !pendingDecision && (
+              <section className="half-time-panel">
                 <p className="menu-subtitle">DESCANSO</p>
 
                 <h2>
