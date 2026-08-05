@@ -554,4 +554,55 @@ button,
   padding-bottom: max(10px, env(safe-area-inset-bottom));
   padding-left: max(10px, env(safe-area-inset-left));
 }
+.half-time-panel,
+.full-time-panel {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  padding: 22px;
+  border: 1px solid #dbe5de;
+  border-radius: 16px;
+  background: #f1f6f3;
+  text-align: center;
+}
+
+.half-time-panel h2,
+.full-time-panel h2 {
+  margin: 0;
+}
+
+.half-time-panel .primary-button,
+.full-time-panel .primary-button {
+  width: min(100%, 380px);
+}
+
+.match-clock {
+  min-width: 90px;
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+}
+
+.speed-controls {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.speed-button {
+  min-width: 48px;
+  min-height: 42px;
+  border: 1px solid #cbd7cf;
+  border-radius: 10px;
+  background: white;
+  color: #173324;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.active-speed {
+  border-color: #168447;
+  background: #168447;
+  color: white;
+}
 }

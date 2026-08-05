@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import type { Club } from "../../domain/club";
 import type { Fixture } from "../../domain/fixture";
@@ -9,6 +9,10 @@ import {
 } from "../../core/match/simulateMatchWithEvents";
 import type { Lineup } from "../../domain/lineup";
 import type { Player } from "../../domain/player";
+import type { MatchClockState, MatchSpeed } from "../../domain/matchClock";
+
+import { formatMatchClock } from "../../core/match/formatMatchClock";
+import { calculateAddedTime } from "../../core/match/calculateAddedTime";
 
 interface MatchPageProps {
   fixture: Fixture;
@@ -36,15 +40,35 @@ export function MatchPage({
   const [simulation, setSimulation] =
     useState<SimulatedMatchWithEvents | null>(null);
 
-  const [visibleEventCount, setVisibleEventCount] = useState(0);
+  type MatchPlaybackStatus =
+  | "PRE_MATCH"
+  | "PLAYING_FIRST_HALF"
+  | "HALF_TIME"
+  | "PLAYING_SECOND_HALF"
+  | "FULL_TIME";
 
-  const visibleEvents = useMemo(
-    () => simulation?.events.slice(0, visibleEventCount) ?? [],
-    [simulation, visibleEventCount],
-  );
+    const [playbackStatus, setPlaybackStatus] =
+    useState<MatchPlaybackStatus>("PRE_MATCH");
 
-  const currentMinute =
-    visibleEvents[visibleEvents.length - 1]?.minute ?? 0;
+  const [clock, setClock] = useState<MatchClockState>({
+    elapsedSeconds: 0,
+    period: "PRE_MATCH",
+    speed: 4,
+    firstHalfAddedMinutes: 0,
+    secondHalfAddedMinutes: 0,
+  });
+
+  const currentMinute = Math.floor(clock.elapsedSeconds / 60);
+
+  const visibleEvents = useMemo(() => {
+    if (!simulation) {
+      return [];
+    }
+
+    return simulation.events.filter((event) =>
+      event.minute <= currentMinute,
+    );
+  }, [simulation, currentMinute]);
 
   const currentScore = calculateVisibleScore(
     visibleEvents,
@@ -52,33 +76,137 @@ export function MatchPage({
     awayClub.id,
   );
 
-  const matchFinished =
-    simulation !== null &&
-    visibleEventCount >= simulation.events.length;
-
   function handleStart() {
     const result = simulateMatchWithEvents(
       fixture,
       homeClub,
       awayClub,
-        homeLineup,
-        awayLineup,
-        players,
+      homeLineup,
+      awayLineup,
+      players,
     );
 
+    const firstHalfAddedMinutes = calculateAddedTime({
+      events: result.events,
+      fromMinute: 0,
+      toMinute: 45,
+    });
+
+    const secondHalfAddedMinutes = calculateAddedTime({
+      events: result.events,
+      fromMinute: 46,
+      toMinute: 90,
+    });
+
     setSimulation(result);
-    setVisibleEventCount(1);
+
+    setClock((current) => ({
+      ...current,
+      elapsedSeconds: 0,
+      period: "FIRST_HALF",
+      firstHalfAddedMinutes,
+      secondHalfAddedMinutes,
+    }));
   }
 
-  function handleNextEvent() {
+  useEffect(() => {
     if (!simulation) {
       return;
     }
 
-    setVisibleEventCount((current) =>
-      Math.min(current + 1, simulation.events.length),
+    const isPlaying =
+      playbackStatus === "PLAYING_FIRST_HALF" ||
+      playbackStatus === "PLAYING_SECOND_HALF";
+
+    if (!isPlaying) {
+      return;
+    }
+
+    const nextEvent = simulation.events.find(
+      (e) => e.minute > currentMinute,
     );
-  }
+
+    if (!nextEvent) {
+      setPlaybackStatus("FULL_TIME");
+      return;
+    }
+
+    if (
+      playbackStatus === "PLAYING_FIRST_HALF" &&
+      nextEvent.type === "HALF_TIME"
+    ) {
+      const timeoutId = window.setTimeout(() => {
+        setPlaybackStatus("HALF_TIME");
+      }, 900);
+
+      return () => window.clearTimeout(timeoutId);
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      if (nextEvent.type === "FULL_TIME") {
+        setPlaybackStatus("FULL_TIME");
+      }
+    }, getEventDelay(nextEvent.type));
+
+    return () => window.clearTimeout(timeoutId);
+  }, [simulation, currentMinute, playbackStatus]);
+
+  useEffect(() => {
+    if (!simulation) {
+      return;
+    }
+
+    const isRunning =
+      clock.period === "FIRST_HALF" ||
+      clock.period === "SECOND_HALF";
+
+    if (!isRunning) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      setClock((current) => {
+        const secondsAdvanced = current.speed * 4;
+        const nextSeconds =
+          current.elapsedSeconds + secondsAdvanced;
+
+        const firstHalfLimit =
+          (45 + current.firstHalfAddedMinutes) * 60;
+
+        const secondHalfLimit =
+          (90 + current.secondHalfAddedMinutes) * 60;
+
+        if (
+          current.period === "FIRST_HALF" &&
+          nextSeconds >= firstHalfLimit
+        ) {
+          return {
+            ...current,
+            elapsedSeconds: firstHalfLimit,
+            period: "HALF_TIME",
+          };
+        }
+
+        if (
+          current.period === "SECOND_HALF" &&
+          nextSeconds >= secondHalfLimit
+        ) {
+          return {
+            ...current,
+            elapsedSeconds: secondHalfLimit,
+            period: "FULL_TIME",
+          };
+        }
+
+        return {
+          ...current,
+          elapsedSeconds: nextSeconds,
+        };
+      });
+    }, 100);
+
+    return () => window.clearInterval(intervalId);
+  }, [simulation, clock.period]);
 
   return (
     <main className="game-page">
@@ -99,19 +227,21 @@ export function MatchPage({
           </div>
         </header>
 
-        <section className="lineups-preview">
-          <LineupColumn
-            title={homeClub.name}
-            lineup={homeLineup}
-            players={players}
-          />
+        {playbackStatus === "PRE_MATCH" && (
+          <section className="lineups-preview">
+            <LineupColumn
+              title={homeClub.name}
+              lineup={homeLineup}
+              players={players}
+            />
 
-          <LineupColumn
-            title={awayClub.name}
-            lineup={awayLineup}
-            players={players}
-          />
-        </section>
+            <LineupColumn
+              title={awayClub.name}
+              lineup={awayLineup}
+              players={players}
+            />
+          </section>
+        )}
 
         <section className="match-scoreboard">
           <article
@@ -129,14 +259,40 @@ export function MatchPage({
           </article>
 
           <div className="score-centre">
-            <span className="match-minute">
-              {simulation ? `${currentMinute}'` : "—"}
+            <span className="match-minute match-clock">
+            {simulation ? formatMatchClock(clock) : "0:00"}
             </span>
 
             <strong className="main-score">
               {currentScore.home} - {currentScore.away}
             </strong>
           </div>
+
+          {simulation &&
+            clock.period !== "FULL_TIME" &&
+            clock.period !== "HALF_TIME" && (
+              <div className="speed-controls">
+                {([1, 2, 4, 8] as MatchSpeed[]).map((speed) => (
+                  <button
+                    key={speed}
+                    type="button"
+                    className={
+                      clock.speed === speed
+                        ? "speed-button active-speed"
+                        : "speed-button"
+                    }
+                    onClick={() =>
+                      setClock((current) => ({
+                        ...current,
+                        speed,
+                      }))
+                    }
+                  >
+                    x{speed}
+                  </button>
+                ))}
+              </div>
+            )}
 
           <article
             className={
@@ -163,7 +319,7 @@ export function MatchPage({
           </button>
         )}
 
-        {simulation && (
+            {simulation && (
           <>
             <section className="match-events">
               <h2>Eventos</h2>
@@ -183,30 +339,70 @@ export function MatchPage({
               ))}
             </section>
 
-            {!matchFinished && (
-              <button
-                className="primary-button"
-                type="button"
-                onClick={handleNextEvent}
-              >
-                Continuar partido
-              </button>
+            {clock.period === "HALF_TIME" && (
+              <section className="half-time-panel">
+                <p className="menu-subtitle">DESCANSO</p>
+
+                <h2>
+                  {homeClub.name} {currentScore.home} -{" "}
+                  {currentScore.away} {awayClub.name}
+                </h2>
+
+                <button
+                  className="primary-button"
+                  type="button"
+                  onClick={() =>
+                    setClock((current) => ({
+                      ...current,
+                      elapsedSeconds: 45 * 60,
+                      period: "SECOND_HALF",
+                    }))
+                  }
+                >
+                  Continuar con la segunda parte
+                </button>
+              </section>
             )}
 
-            {matchFinished && (
-              <button
-                className="primary-button"
-                type="button"
-                onClick={() => onFinish(simulation)}
-              >
-                Volver a la jornada
-              </button>
+            {clock.period === "FULL_TIME" && simulation && (
+              <section className="full-time-panel">
+                <p className="menu-subtitle">
+                  FINAL DEL PARTIDO
+                </p>
+
+                <h2>
+                  {homeClub.name} {simulation.homeGoals} -{" "}
+                  {simulation.awayGoals} {awayClub.name}
+                </h2>
+
+                <button
+                  className="primary-button"
+                  type="button"
+                  onClick={() => onFinish(simulation)}
+                >
+                  Ver resultados de la jornada
+                </button>
+              </section>
             )}
           </>
         )}
       </section>
     </main>
   );
+}
+
+function getEventDelay(type: MatchEvent["type"]): number {
+  switch (type) {
+    case "GOAL":
+      return 1_800;
+
+    case "HALF_TIME":
+    case "FULL_TIME":
+      return 1_200;
+
+    default:
+      return 650;
+  }
 }
 
 function calculateVisibleScore(
@@ -278,26 +474,3 @@ function LineupColumn({
     </article>
   );
 }
-
-/* Example usage:
-<MatchPage
-  fixture={managedFixture}
-  homeClub={homeClub}
-  awayClub={awayClub}
-  managedClubId={managedClubId}
-  players={players}
-  homeLineup={homeLineup}
-  awayLineup={awayLineup}
-  onBack={() => setPage("CAREER")}
-  onFinish={(result) => {
-    playManagedMatch({
-      fixtureId: result.fixtureId,
-      homeGoals: result.homeGoals,
-      awayGoals: result.awayGoals,
-    });
-
-    simulateCurrentMatchday();
-    setPage("CAREER");
-  }}
-/>
-*/

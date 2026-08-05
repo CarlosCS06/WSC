@@ -175,9 +175,14 @@ export function simulateMatchWithEvents(
 
     const priority: Record<MatchEvent["type"], number> = {
       KICK_OFF: 0,
-      GOAL: 1,
-      HALF_TIME: 2,
-      FULL_TIME: 3,
+      INJURY: 1,
+      SUBSTITUTION: 1,
+      RED_CARD: 1,
+      SECOND_YELLOW_CARD: 1,
+      PENALTY_AWARDED: 1,
+      GOAL: 2,
+      HALF_TIME: 3,
+      FULL_TIME: 4,
     };
 
     return (
