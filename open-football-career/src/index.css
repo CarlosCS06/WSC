@@ -331,4 +331,31 @@ button:disabled {
     grid-template-columns: 1fr 50px 1fr;
     font-size: 14px;
   }
+  .managed-fixture-row {
+  border: 2px solid #168447;
+  background: #e7f6ec;
+  box-shadow: 0 5px 14px rgba(22, 132, 71, 0.12);
+  }
+
+  .managed-club-name {
+    font-weight: 800;
+    color: #126a39;
+  }
+
+  .fixture-score {
+    padding: 7px 5px;
+    border-radius: 8px;
+    background: #173324;
+    color: white;
+    font-size: 17px;
+  }
+
+  .final-season-card {
+    margin-top: 22px;
+  }
+
+  .final-season-card h2 {
+    margin: 6px 0;
+    font-size: 30px;
+  }
 }

@@ -7,6 +7,8 @@ import type { Competition } from "../domain/competition";
 import type { Fixture } from "../domain/fixture";
 import type { StandingRow } from "../domain/standings";
 
+type MatchdayView = "PENDING" | "RESULTS";
+
 interface StartCareerInput {
   careerId: string;
   seasonId: string;
@@ -20,7 +22,10 @@ interface CareerState {
   careerId: string | null;
   seasonId: string | null;
   managedClubId: string | null;
+
   currentMatchday: number;
+  lastPlayedMatchday: number | null;
+  matchdayView: MatchdayView;
 
   clubs: Club[];
   competitions: Competition[];
@@ -29,6 +34,7 @@ interface CareerState {
 
   startCareer: (input: StartCareerInput) => void;
   simulateCurrentMatchday: () => void;
+  continueToNextMatchday: () => void;
   resetCareer: () => void;
 }
 
@@ -36,7 +42,10 @@ export const useCareerStore = create<CareerState>((set) => ({
   careerId: null,
   seasonId: null,
   managedClubId: null,
+
   currentMatchday: 1,
+  lastPlayedMatchday: null,
+  matchdayView: "PENDING",
 
   clubs: [],
   competitions: [],
@@ -69,16 +78,34 @@ export const useCareerStore = create<CareerState>((set) => ({
       clubs,
       competitions,
       fixtures,
-      currentMatchday: 1,
       standings,
+
+      currentMatchday: 1,
+      lastPlayedMatchday: null,
+      matchdayView: "PENDING",
     });
   },
 
   simulateCurrentMatchday: () =>
     set((state) => {
+      if (state.matchdayView === "RESULTS") {
+        return state;
+      }
+
       const competition = state.competitions[0];
 
       if (!competition) {
+        return state;
+      }
+
+      const currentFixtures = state.fixtures.filter(
+        (fixture) => fixture.matchday === state.currentMatchday,
+      );
+
+      if (
+        currentFixtures.length === 0 ||
+        currentFixtures.every((fixture) => fixture.played)
+      ) {
         return state;
       }
 
@@ -93,20 +120,32 @@ export const useCareerStore = create<CareerState>((set) => ({
         updatedFixtures,
       );
 
-      const maximumMatchday = Math.max(
-        0,
-        ...updatedFixtures.map((fixture) => fixture.matchday),
-      );
-
-      const nextMatchday =
-        state.currentMatchday < maximumMatchday
-          ? state.currentMatchday + 1
-          : state.currentMatchday;
-
       return {
         fixtures: updatedFixtures,
         standings,
-        currentMatchday: nextMatchday,
+        lastPlayedMatchday: state.currentMatchday,
+        matchdayView: "RESULTS",
+      };
+    }),
+
+  continueToNextMatchday: () =>
+    set((state) => {
+      if (state.matchdayView !== "RESULTS") {
+        return state;
+      }
+
+      const maximumMatchday = Math.max(
+        0,
+        ...state.fixtures.map((fixture) => fixture.matchday),
+      );
+
+      if (state.currentMatchday >= maximumMatchday) {
+        return state;
+      }
+
+      return {
+        currentMatchday: state.currentMatchday + 1,
+        matchdayView: "PENDING",
       };
     }),
 
@@ -115,7 +154,11 @@ export const useCareerStore = create<CareerState>((set) => ({
       careerId: null,
       seasonId: null,
       managedClubId: null,
+
       currentMatchday: 1,
+      lastPlayedMatchday: null,
+      matchdayView: "PENDING",
+
       clubs: [],
       competitions: [],
       fixtures: [],

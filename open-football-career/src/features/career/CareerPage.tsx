@@ -13,11 +13,14 @@ export function CareerPage({
     seasonId,
     managedClubId,
     currentMatchday,
+    lastPlayedMatchday,
+    matchdayView,
     clubs,
     competitions,
     fixtures,
     standings,
     simulateCurrentMatchday,
+    continueToNextMatchday,
     resetCareer,
   } = useCareerStore();
 
@@ -32,17 +35,22 @@ export function CareerPage({
     ...fixtures.map((fixture) => fixture.matchday),
   );
 
-  const currentFixtures = fixtures.filter(
-    (fixture) => fixture.matchday === currentMatchday,
-  );
-
-  const currentMatchdayPlayed =
-    currentFixtures.length > 0 &&
-    currentFixtures.every((fixture) => fixture.played);
-
   const seasonFinished =
     fixtures.length > 0 &&
     fixtures.every((fixture) => fixture.played);
+
+  const displayedMatchday =
+    matchdayView === "RESULTS" && lastPlayedMatchday !== null
+      ? lastPlayedMatchday
+      : currentMatchday;
+
+  const managedStanding = standings.find(
+    (row) => row.clubId === managedClubId,
+  );
+
+  const champion = clubs.find(
+    (club) => club.id === standings[0]?.clubId,
+  );
 
   function handleExit() {
     resetCareer();
@@ -80,8 +88,7 @@ export function CareerPage({
 
             <p>
               Temporada {seasonId} · Jornada{" "}
-              {Math.min(currentMatchday, maximumMatchday)} de{" "}
-              {maximumMatchday}
+              {displayedMatchday} de {maximumMatchday}
             </p>
           </div>
 
@@ -110,11 +117,13 @@ export function CareerPage({
           <article className="summary-card">
             <span>Posición</span>
             <strong>
-              {standings.find(
-                (row) => row.clubId === managedClub.id,
-              )?.position ?? "-"}
-              .º
+              {managedStanding?.position ?? "-"}.º
             </strong>
+          </article>
+
+          <article className="summary-card">
+            <span>Puntos</span>
+            <strong>{managedStanding?.points ?? 0}</strong>
           </article>
         </section>
 
@@ -122,12 +131,15 @@ export function CareerPage({
           <div className="section-heading">
             <div>
               <p className="menu-subtitle">
-                PRÓXIMA JORNADA
+                {matchdayView === "RESULTS"
+                  ? "RESULTADOS"
+                  : "PRÓXIMA JORNADA"}
               </p>
-              <h2>Jornada {currentMatchday}</h2>
+
+              <h2>Jornada {displayedMatchday}</h2>
             </div>
 
-            {!seasonFinished && !currentMatchdayPlayed && (
+            {matchdayView === "PENDING" && !seasonFinished && (
               <button
                 className="primary-button simulate-button"
                 type="button"
@@ -136,27 +148,47 @@ export function CareerPage({
                 Simular jornada
               </button>
             )}
+
+            {matchdayView === "RESULTS" &&
+              !seasonFinished && (
+                <button
+                  className="primary-button simulate-button"
+                  type="button"
+                  onClick={continueToNextMatchday}
+                >
+                  Continuar a jornada {currentMatchday + 1}
+                </button>
+              )}
           </div>
 
-          {seasonFinished ? (
-            <div className="season-finished">
-              <h2>Temporada terminada</h2>
-              <p>
-                Campeón:{" "}
-                <strong>
-                  {clubs.find(
-                    (club) =>
-                      club.id === standings[0]?.clubId,
-                  )?.name ?? "Sin campeón"}
-                </strong>
+          <FixturesList
+            fixtures={fixtures}
+            clubs={clubs}
+            matchday={displayedMatchday}
+            managedClubId={managedClubId}
+          />
+
+          {seasonFinished && (
+            <div className="season-finished final-season-card">
+              <p className="menu-subtitle">
+                TEMPORADA TERMINADA
               </p>
+
+              <h2>{champion?.name ?? "Sin campeón"}</h2>
+
+              <p>Campeón de {competition.name}</p>
+
+              {champion?.id === managedClubId ? (
+                <strong>¡Has ganado la liga!</strong>
+              ) : (
+                <p>
+                  Tu posición final:{" "}
+                  <strong>
+                    {managedStanding?.position ?? "-"}.º
+                  </strong>
+                </p>
+              )}
             </div>
-          ) : (
-            <FixturesList
-              fixtures={fixtures}
-              clubs={clubs}
-              matchday={currentMatchday}
-            />
           )}
         </section>
 
@@ -166,6 +198,7 @@ export function CareerPage({
               <p className="menu-subtitle">
                 CLASIFICACIÓN
               </p>
+
               <h2>{competition.name}</h2>
             </div>
           </div>
