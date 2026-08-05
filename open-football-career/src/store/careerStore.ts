@@ -36,6 +36,11 @@ interface CareerState {
   simulateCurrentMatchday: () => void;
   continueToNextMatchday: () => void;
   resetCareer: () => void;
+  playManagedMatch: (input: {
+    fixtureId: string;
+    homeGoals: number;
+    awayGoals: number;
+  }) => void;
 }
 
 export const useCareerStore = create<CareerState>((set) => ({
@@ -163,5 +168,43 @@ export const useCareerStore = create<CareerState>((set) => ({
       competitions: [],
       fixtures: [],
       standings: [],
+    }),
+
+  playManagedMatch: ({ fixtureId, homeGoals, awayGoals }) =>
+    set((state) => {
+      const fixtureExists = state.fixtures.some(
+        (fixture) => fixture.id === fixtureId,
+      );
+
+      if (!fixtureExists) {
+        throw new Error(`No existe el partido ${fixtureId} en la carrera.`);
+      }
+
+      const fixtures = state.fixtures.map((fixture) =>
+        fixture.id === fixtureId
+          ? {
+              ...fixture,
+              played: true,
+              homeGoals,
+              awayGoals,
+            }
+          : fixture,
+      );
+
+      const competition = state.competitions[0];
+
+      if (!competition) {
+        return { fixtures };
+      }
+
+      const standings = calculateStandings(
+        competition.participantClubIds,
+        fixtures,
+      );
+
+      return {
+        fixtures,
+        standings,
+      };
     }),
 }));

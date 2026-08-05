@@ -4,10 +4,12 @@ import { useCareerStore } from "../../store/careerStore";
 
 interface CareerPageProps {
   onExit: () => void;
+  onPlayMatch: () => void;
 }
 
 export function CareerPage({
   onExit,
+  onPlayMatch,
 }: CareerPageProps) {
   const {
     seasonId,
@@ -34,6 +36,13 @@ export function CareerPage({
     0,
     ...fixtures.map((fixture) => fixture.matchday),
   );
+
+  const managedFixture = fixtures.find(
+    (fixture) =>
+        fixture.matchday === currentMatchday &&
+        (fixture.homeClubId === managedClubId ||
+        fixture.awayClubId === managedClubId),
+    );
 
   const seasonFinished =
     fixtures.length > 0 &&
@@ -140,15 +149,26 @@ export function CareerPage({
             </div>
 
             {matchdayView === "PENDING" && !seasonFinished && (
-              <button
-                className="primary-button simulate-button"
+            <div className="matchday-actions">
+                {managedFixture && !managedFixture.played && (
+                <button
+                    className="primary-button simulate-button"
+                    type="button"
+                    onClick={onPlayMatch}
+                >
+                    Jugar mi partido
+                </button>
+                )}
+
+                <button
+                className="secondary-button simulate-button"
                 type="button"
                 onClick={simulateCurrentMatchday}
-              >
-                Simular jornada
-              </button>
+                >
+                Simular jornada completa
+                </button>
+            </div>
             )}
-
             {matchdayView === "RESULTS" &&
               !seasonFinished && (
                 <button
