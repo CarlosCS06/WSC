@@ -56,6 +56,7 @@ function createLineupState(
       substitutedIn: false,
       substitutedOut: false,
       fatigue: 0,
+      minutesPlayed: 0,
     };
   });
 }

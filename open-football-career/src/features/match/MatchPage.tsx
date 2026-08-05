@@ -19,7 +19,8 @@ import { formatMatchClock } from "../../core/match/formatMatchClock";
 import { calculateAddedTime } from "../../core/match/calculateAddedTime";
 import type { MatchDecision } from "../../domain/matchDecision";
 import { InjurySubstitutionPanel } from "./InjurySubstitutionPanel";
-
+import type { TeamMatchState } from "../../domain/teamMatchState";
+import { selectCpuTacticalSubstitution } from "../../core/match/selectCpuTacticalSubstitution";
 
 interface MatchPageProps {
   fixture: Fixture;
@@ -54,7 +55,10 @@ export function MatchPage({
     useState<Set<string>>(new Set());
   const [playerStates, setPlayerStates] =
     useState<MatchPlayerState[]>([]);
-  
+  const [teamStates, setTeamStates] = useState<TeamMatchState[]>([]);
+    
+  const [cpuSubstitutionMinutes, setCpuSubstitutionMinutes] = useState<Set<number>>(new Set());
+
   type MatchPlaybackStatus =
   | "PRE_MATCH"
   | "PLAYING_FIRST_HALF"
@@ -102,6 +106,7 @@ export function MatchPage({
     let nextPlayerStates = playerStates;
     let nextEvents = [...simulation.events];
     let nextDecision = pendingDecision;
+    const nextCpuSubstitutionMinutes = new Set(cpuSubstitutionMinutes);
 
     const newlyProcessedIds: string[] = [];
 
@@ -144,7 +149,7 @@ export function MatchPage({
           )
           .map((state) => state.playerId);
 
-            nextDecision = {
+        nextDecision = {
           type: "USER_INJURY_SUBSTITUTION",
           clubId: managedClubId,
           injuredPlayerId: event.playerId!,
@@ -153,6 +158,12 @@ export function MatchPage({
         };
 
         break;
+      }
+
+      const minute = event.minute;
+
+      if (nextCpuSubstitutionMinutes.has(minute)) {
+        continue;
       }
 
       const substitute = selectCpuSubstitute({
@@ -192,10 +203,12 @@ export function MatchPage({
         substitutionResult.playerStates;
 
       nextEvents.push(substitutionEvent);
+      nextCpuSubstitutionMinutes.add(minute);
     }
 
     setPlayerStates(nextPlayerStates);
     setPendingDecision(nextDecision);
+    setCpuSubstitutionMinutes(nextCpuSubstitutionMinutes);
 
     setProcessedEventIds((current) => {
       const updated = new Set(current);
@@ -224,7 +237,9 @@ export function MatchPage({
     managedClubId,
     players,
     fixture.id,
+    cpuSubstitutionMinutes,
   ]);
+
   useEffect(() => {
     // placeholder: `pendingDecision` will be handled by UI/logic later
     if (!pendingDecision) return;
@@ -255,6 +270,7 @@ export function MatchPage({
     );
 
     setProcessedEventIds(new Set());
+    setCpuSubstitutionMinutes(new Set());
 
     const firstHalfAddedMinutes = calculateAddedTime({
       events: result.events,
@@ -277,6 +293,23 @@ export function MatchPage({
       firstHalfAddedMinutes,
       secondHalfAddedMinutes,
     }));
+
+    setTeamStates([
+    {
+        clubId: homeClub.id,
+        substitutionsUsed: 0,
+        maximumSubstitutions: 5,
+        substitutionWindowsUsed: 0,
+        maximumSubstitutionWindows: 3,
+    },
+    {
+        clubId: awayClub.id,
+        substitutionsUsed: 0,
+        maximumSubstitutions: 5,
+        substitutionWindowsUsed: 0,
+        maximumSubstitutionWindows: 3,
+    },
+    ]);
   }
 
   function handleInjurySubstitution(
@@ -320,6 +353,20 @@ export function MatchPage({
 
     setPendingDecision(null);
 
+    setTeamStates((current) =>
+      current.map((state) =>
+        state.clubId === managedClubId
+          ? {
+              ...state,
+              substitutionsUsed:
+                state.substitutionsUsed + 1,
+              substitutionWindowsUsed:
+                state.substitutionWindowsUsed + 1,
+            }
+          : state,
+      ),
+    );
+
     const result = applyMatchEvent(
     playerStates,
     substitutionEvent,
@@ -327,6 +374,148 @@ export function MatchPage({
 
     setPlayerStates(result.playerStates);
   }
+
+  useEffect(() => {
+  if (
+    !simulation ||
+    pendingDecision ||
+    playerStates.length === 0
+  ) {
+    return;
+  }
+
+  const minute = Math.floor(
+    clock.elapsedSeconds / 60,
+  );
+
+  if (minute < 55 || minute > 86) {
+    return;
+  }
+
+  if (minute % 7 !== 0) {
+    return;
+  }
+
+  if (cpuSubstitutionMinutes.has(minute)) {
+    return;
+  }
+  const cpuClub =
+    managedClubId === homeClub.id
+      ? awayClub
+      : homeClub;
+
+  const cpuTeamState = teamStates.find(
+    (state) => state.clubId === cpuClub.id,
+  );
+
+  if (
+    !cpuTeamState ||
+    cpuTeamState.substitutionsUsed >=
+      cpuTeamState.maximumSubstitutions ||
+    cpuTeamState.substitutionWindowsUsed >=
+      cpuTeamState.maximumSubstitutionWindows
+  ) {
+    return;
+  }
+
+  const goalsFor =
+    cpuClub.id === homeClub.id
+      ? currentScore.home
+      : currentScore.away;
+
+  const goalsAgainst =
+    cpuClub.id === homeClub.id
+      ? currentScore.away
+      : currentScore.home;
+
+  const selection = selectCpuTacticalSubstitution({
+    clubId: cpuClub.id,
+    minute,
+    goalsFor,
+    goalsAgainst,
+    playerStates,
+    players,
+  });
+
+  if (!selection) {
+    return;
+  }
+
+  const outgoingPlayer = players.find(
+    (player) =>
+      player.id === selection.outgoingPlayerId,
+  );
+
+  const incomingPlayer = players.find(
+    (player) =>
+      player.id === selection.incomingPlayerId,
+  );
+
+  if (!outgoingPlayer || !incomingPlayer) {
+    return;
+  }
+
+  const event: MatchEvent = {
+    id: `${fixture.id}_TACTICAL_SUB_${cpuClub.id}_${minute}`,
+    fixtureId: fixture.id,
+    minute,
+    type: "SUBSTITUTION",
+    clubId: cpuClub.id,
+    playerId: outgoingPlayer.id,
+    secondaryPlayerId: incomingPlayer.id,
+    description:
+      `Cambio en ${cpuClub.name}: sale ` +
+      `${outgoingPlayer.shortName} y entra ` +
+      `${incomingPlayer.shortName}.`,
+  };
+
+  const result = applyMatchEvent(
+    playerStates,
+    event,
+  );
+
+  setPlayerStates(result.playerStates);
+
+  setSimulation((current) => {
+    if (!current) {
+      return current;
+    }
+
+    return {
+      ...current,
+      events: [...current.events, event].sort(
+        (a, b) => a.minute - b.minute,
+      ),
+    };
+  });
+
+  setTeamStates((current) =>
+    current.map((state) =>
+      state.clubId === cpuClub.id
+        ? {
+            ...state,
+            substitutionsUsed:
+              state.substitutionsUsed + 1,
+            substitutionWindowsUsed:
+              state.substitutionWindowsUsed + 1,
+          }
+        : state,
+    ),
+  );
+}, [
+  clock.elapsedSeconds,
+  simulation,
+  pendingDecision,
+  playerStates,
+  teamStates,
+  managedClubId,
+  homeClub,
+  awayClub,
+  currentScore.home,
+  currentScore.away,
+  players,
+  fixture.id,
+]);
 
   useEffect(() => {
     if (!simulation) {

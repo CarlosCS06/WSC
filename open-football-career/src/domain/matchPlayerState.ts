@@ -16,4 +16,5 @@ export interface MatchPlayerState {
   substitutedOut: boolean;
 
   fatigue: number;
+  minutesPlayed: number;
 }

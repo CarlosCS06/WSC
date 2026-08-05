@@ -63,6 +63,7 @@ function createLineupStates(
       substitutedOut: false,
 
       fatigue: 0,
+      minutesPlayed: 0,
     };
   });
 }
