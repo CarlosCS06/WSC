@@ -33,6 +33,14 @@ function App() {
         fixture.awayClubId === managedClubId),
   );
 
+  const homeClub = managedFixture
+    ? clubs.find((club) => club.id === managedFixture.homeClubId)
+    : undefined;
+
+  const awayClub = managedFixture
+    ? clubs.find((club) => club.id === managedFixture.awayClubId)
+    : undefined;
+
   const homeLineup = homeClub
     ? selectAutomaticLineup(homeClub.id, players)
     : null;
@@ -66,6 +74,7 @@ function App() {
         awayClub={awayClub}
         homeLineup={homeLineup}
         awayLineup={awayLineup}
+        players={players}
         managedClubId={managedClubId}
         onBack={() => setPage("CAREER")}
         onFinish={(result) => {

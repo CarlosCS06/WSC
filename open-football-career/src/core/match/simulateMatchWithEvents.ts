@@ -149,7 +149,7 @@ export function simulateMatchWithEvents(
       id: `${fixture.id}_KICK_OFF`,
       fixtureId: fixture.id,
       minute: 0,
-      type: "KICK_OFF",
+      type: "KICK_OFF" as const,
       description: "Comienza el partido.",
     },
     ...homeGoalEvents,
@@ -158,14 +158,14 @@ export function simulateMatchWithEvents(
       id: `${fixture.id}_HALF_TIME`,
       fixtureId: fixture.id,
       minute: 45,
-      type: "HALF_TIME",
+      type: "HALF_TIME" as const,
       description: "Descanso.",
     },
     {
       id: `${fixture.id}_FULL_TIME`,
       fixtureId: fixture.id,
       minute: 90,
-      type: "FULL_TIME",
+      type: "FULL_TIME" as const,
       description: "Final del partido.",
     },
   ].sort((a, b) => {
@@ -180,7 +180,10 @@ export function simulateMatchWithEvents(
       FULL_TIME: 3,
     };
 
-    return priority[a.type] - priority[b.type];
+    return (
+      priority[a.type as MatchEvent["type"]] -
+      priority[b.type as MatchEvent["type"]]
+    );
   });
 
   return {
