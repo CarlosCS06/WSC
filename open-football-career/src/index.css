@@ -475,4 +475,83 @@ button:disabled {
     width: 100%;
   }
 }
+
+.lineups-preview {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+.lineup-column {
+  padding: 18px;
+  border: 1px solid #dbe5de;
+  border-radius: 16px;
+  background: white;
+}
+
+.lineup-column h2 {
+  margin: 0 0 4px;
+}
+
+.lineup-column > p {
+  margin-top: 0;
+  color: #68746d;
+}
+
+.lineup-list {
+  display: grid;
+  gap: 7px;
+}
+
+.lineup-player {
+  display: grid;
+  grid-template-columns: 42px 1fr 35px;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #f1f6f3;
+}
+
+.lineup-player span {
+  font-size: 12px;
+  font-weight: 800;
+  color: #168447;
+}
+
+.lineup-player small {
+  text-align: right;
+  font-weight: 700;
+}
+
+@media (max-width: 650px) {
+  .lineups-preview {
+    grid-template-columns: 1fr;
+  }
+
+  .lineup-column {
+    padding: 14px;
+  }
+}
+:root {
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  overscroll-behavior-y: none;
+}
+
+button,
+.club-card {
+  touch-action: manipulation;
+}
+
+.game-page {
+  padding-top: max(10px, env(safe-area-inset-top));
+  padding-right: max(10px, env(safe-area-inset-right));
+  padding-bottom: max(10px, env(safe-area-inset-bottom));
+  padding-left: max(10px, env(safe-area-inset-left));
+}
 }

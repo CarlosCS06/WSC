@@ -4,6 +4,7 @@ import {
   demoCompetition,
 } from "../../data/demo/demoData";
 import { useCareerStore } from "../../store/careerStore";
+import { demoPlayers } from "../../data/demo/demoPlayers";
 
 interface NewCareerPageProps {
   onCareerStarted: () => void;
@@ -39,6 +40,7 @@ export function NewCareerPage({
       clubs: demoClubs,
       competitions: [demoCompetition],
       fixtures,
+      players: demoPlayers,
     });
 
     onCareerStarted();

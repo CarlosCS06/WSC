@@ -1,6 +1,8 @@
 import type { Club } from "../../domain/club";
 import type { Fixture } from "../../domain/fixture";
+import type { Lineup } from "../../domain/lineup";
 import type { MatchEvent } from "../../domain/matchEvent";
+import type { Player } from "../../domain/player";
 import { simulateMatch } from "./simulateMatch";
 
 export interface SimulatedMatchWithEvents {
@@ -20,35 +22,127 @@ function createGoalMinutes(totalGoals: number): number[] {
   return minutes.sort((a, b) => a - b);
 }
 
+function weightedRandomPlayer(
+  players: Player[],
+  weightSelector: (player: Player) => number,
+): Player {
+  const weightedPlayers = players.map((player) => ({
+    player,
+    weight: Math.max(1, weightSelector(player)),
+  }));
+
+  const totalWeight = weightedPlayers.reduce(
+    (total, item) => total + item.weight,
+    0,
+  );
+
+  let randomValue = Math.random() * totalWeight;
+
+  for (const item of weightedPlayers) {
+    randomValue -= item.weight;
+
+    if (randomValue <= 0) {
+      return item.player;
+    }
+  }
+
+  const fallback = weightedPlayers.at(-1)?.player;
+
+  if (!fallback) {
+    throw new Error("No hay jugadores para seleccionar.");
+  }
+
+  return fallback;
+}
+
+function getLineupPlayers(
+  lineup: Lineup,
+  players: Player[],
+): Player[] {
+  const playersById = new Map(
+    players.map((player) => [player.id, player]),
+  );
+
+  return lineup.starters
+    .map((slot) => playersById.get(slot.playerId))
+    .filter((player): player is Player => player !== undefined);
+}
+
+function createGoalEvents(
+  fixture: Fixture,
+  club: Club,
+  goalMinutes: number[],
+  lineup: Lineup,
+  players: Player[],
+  side: "HOME" | "AWAY",
+): MatchEvent[] {
+  const lineupPlayers = getLineupPlayers(lineup, players);
+
+  return goalMinutes.map((minute, index) => {
+    const scorer = weightedRandomPlayer(
+      lineupPlayers,
+      (player) =>
+        player.attributes.shooting +
+        player.attributes.dribbling / 2 +
+        (player.position === "ST" ? 35 : 0) +
+        (["RW", "LW"].includes(player.position) ? 20 : 0),
+    );
+
+    const possibleAssistants = lineupPlayers.filter(
+      (player) => player.id !== scorer.id,
+    );
+
+    const assistant = weightedRandomPlayer(
+      possibleAssistants,
+      (player) =>
+        player.attributes.passing +
+        player.attributes.dribbling / 2,
+    );
+
+    return {
+      id: `${fixture.id}_${side}_GOAL_${index + 1}`,
+      fixtureId: fixture.id,
+      minute,
+      type: "GOAL",
+      clubId: club.id,
+      playerId: scorer.id,
+      assistPlayerId: assistant.id,
+      description: `¡Gol de ${scorer.shortName}! Asistencia de ${assistant.shortName}.`,
+    };
+  });
+}
+
 export function simulateMatchWithEvents(
   fixture: Fixture,
   homeClub: Club,
   awayClub: Club,
+  homeLineup: Lineup,
+  awayLineup: Lineup,
+  players: Player[],
 ): SimulatedMatchWithEvents {
-  const result = simulateMatch(fixture, homeClub, awayClub);
+  const result = simulateMatch(
+    fixture,
+    homeClub,
+    awayClub,
+  );
 
-  const homeGoalMinutes = createGoalMinutes(result.homeGoals);
-  const awayGoalMinutes = createGoalMinutes(result.awayGoals);
+  const homeGoalEvents = createGoalEvents(
+    fixture,
+    homeClub,
+    createGoalMinutes(result.homeGoals),
+    homeLineup,
+    players,
+    "HOME",
+  );
 
-  const goalEvents: MatchEvent[] = [
-    ...homeGoalMinutes.map((minute, index) => ({
-      id: `${fixture.id}_HOME_GOAL_${index + 1}`,
-      fixtureId: fixture.id,
-      minute,
-      type: "GOAL" as const,
-      clubId: homeClub.id,
-      description: `¡Gol de ${homeClub.name}!`,
-    })),
-
-    ...awayGoalMinutes.map((minute, index) => ({
-      id: `${fixture.id}_AWAY_GOAL_${index + 1}`,
-      fixtureId: fixture.id,
-      minute,
-      type: "GOAL" as const,
-      clubId: awayClub.id,
-      description: `¡Gol de ${awayClub.name}!`,
-    })),
-  ].sort((a, b) => a.minute - b.minute);
+  const awayGoalEvents = createGoalEvents(
+    fixture,
+    awayClub,
+    createGoalMinutes(result.awayGoals),
+    awayLineup,
+    players,
+    "AWAY",
+  );
 
   const events: MatchEvent[] = [
     {
@@ -58,7 +152,8 @@ export function simulateMatchWithEvents(
       type: "KICK_OFF",
       description: "Comienza el partido.",
     },
-    ...goalEvents,
+    ...homeGoalEvents,
+    ...awayGoalEvents,
     {
       id: `${fixture.id}_HALF_TIME`,
       fixtureId: fixture.id,
@@ -78,14 +173,14 @@ export function simulateMatchWithEvents(
       return a.minute - b.minute;
     }
 
-    const eventPriority: Record<MatchEvent["type"], number> = {
+    const priority: Record<MatchEvent["type"], number> = {
       KICK_OFF: 0,
       GOAL: 1,
       HALF_TIME: 2,
       FULL_TIME: 3,
     };
 
-    return eventPriority[a.type] - eventPriority[b.type];
+    return priority[a.type] - priority[b.type];
   });
 
   return {

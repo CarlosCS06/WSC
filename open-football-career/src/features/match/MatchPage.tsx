@@ -7,11 +7,16 @@ import {
   simulateMatchWithEvents,
   type SimulatedMatchWithEvents,
 } from "../../core/match/simulateMatchWithEvents";
+import type { Lineup } from "../../domain/lineup";
+import type { Player } from "../../domain/player";
 
 interface MatchPageProps {
   fixture: Fixture;
   homeClub: Club;
   awayClub: Club;
+  homeLineup: Lineup;
+  awayLineup: Lineup;
+  players: Player[];
   managedClubId: string;
   onFinish: (result: SimulatedMatchWithEvents) => void;
   onBack: () => void;
@@ -21,6 +26,9 @@ export function MatchPage({
   fixture,
   homeClub,
   awayClub,
+  homeLineup,
+  awayLineup,
+  players,
   managedClubId,
   onFinish,
   onBack,
@@ -53,6 +61,9 @@ export function MatchPage({
       fixture,
       homeClub,
       awayClub,
+        homeLineup,
+        awayLineup,
+        players,
     );
 
     setSimulation(result);
@@ -87,6 +98,20 @@ export function MatchPage({
             <h1>Jornada {fixture.matchday}</h1>
           </div>
         </header>
+
+        <section className="lineups-preview">
+          <LineupColumn
+            title={homeClub.name}
+            lineup={homeLineup}
+            players={players}
+          />
+
+          <LineupColumn
+            title={awayClub.name}
+            lineup={awayLineup}
+            players={players}
+          />
+        </section>
 
         <section className="match-scoreboard">
           <article
@@ -211,3 +236,68 @@ function calculateVisibleScore(
 
   return { home, away };
 }
+
+interface LineupColumnProps {
+  title: string;
+  lineup: Lineup;
+  players: Player[];
+}
+
+function LineupColumn({
+  title,
+  lineup,
+  players,
+}: LineupColumnProps) {
+  const playersById = new Map(
+    players.map((player) => [player.id, player]),
+  );
+
+  return (
+    <article className="lineup-column">
+      <h2>{title}</h2>
+      <p>Formación {lineup.formation}</p>
+
+      <div className="lineup-list">
+        {lineup.starters.map((slot) => {
+          const player = playersById.get(slot.playerId);
+
+          return (
+            <div
+              className="lineup-player"
+              key={slot.playerId}
+            >
+              <span>{slot.position}</span>
+              <strong>
+                {player?.shortName ?? slot.playerId}
+              </strong>
+              <small>{player?.overall ?? "-"}</small>
+            </div>
+          );
+        })}
+      </div>
+    </article>
+  );
+}
+
+/* Example usage:
+<MatchPage
+  fixture={managedFixture}
+  homeClub={homeClub}
+  awayClub={awayClub}
+  managedClubId={managedClubId}
+  players={players}
+  homeLineup={homeLineup}
+  awayLineup={awayLineup}
+  onBack={() => setPage("CAREER")}
+  onFinish={(result) => {
+    playManagedMatch({
+      fixtureId: result.fixtureId,
+      homeGoals: result.homeGoals,
+      awayGoals: result.awayGoals,
+    });
+
+    simulateCurrentMatchday();
+    setPage("CAREER");
+  }}
+/>
+*/

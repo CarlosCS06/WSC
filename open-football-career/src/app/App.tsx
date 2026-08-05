@@ -5,6 +5,7 @@ import { NewCareerPage } from "../features/career/NewCareerPage";
 import { MainMenuPage } from "../features/menu/MainMenuPage";
 import { MatchPage } from "../features/match/MatchPage";
 import { useCareerStore } from "../store/careerStore";
+import { selectAutomaticLineup } from "../core/lineup/selectAutomaticLineup";
 
 type AppPage =
   | "MENU"
@@ -20,6 +21,7 @@ function App() {
     managedClubId,
     clubs,
     fixtures,
+    players,
     playManagedMatch,
     simulateCurrentMatchday,
   } = useCareerStore();
@@ -31,13 +33,13 @@ function App() {
         fixture.awayClubId === managedClubId),
   );
 
-  const homeClub = clubs.find(
-    (club) => club.id === managedFixture?.homeClubId,
-  );
+  const homeLineup = homeClub
+    ? selectAutomaticLineup(homeClub.id, players)
+    : null;
 
-  const awayClub = clubs.find(
-    (club) => club.id === managedFixture?.awayClubId,
-  );
+  const awayLineup = awayClub
+    ? selectAutomaticLineup(awayClub.id, players)
+    : null;
 
   if (page === "NEW_CAREER") {
     return (
@@ -53,6 +55,8 @@ function App() {
     managedFixture &&
     homeClub &&
     awayClub &&
+    homeLineup &&
+    awayLineup &&
     managedClubId
   ) {
     return (
@@ -60,6 +64,8 @@ function App() {
         fixture={managedFixture}
         homeClub={homeClub}
         awayClub={awayClub}
+        homeLineup={homeLineup}
+        awayLineup={awayLineup}
         managedClubId={managedClubId}
         onBack={() => setPage("CAREER")}
         onFinish={(result) => {
@@ -75,11 +81,12 @@ function App() {
       />
     );
   }
-  
+
   if (page === "CAREER") {
     return (
       <CareerPage
         onExit={() => setPage("MENU")}
+        onPlayMatch={() => setPage("MATCH")}
       />
     );
   }

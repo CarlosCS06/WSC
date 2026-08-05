@@ -6,6 +6,7 @@ import type { Club } from "../domain/club";
 import type { Competition } from "../domain/competition";
 import type { Fixture } from "../domain/fixture";
 import type { StandingRow } from "../domain/standings";
+import type { Player } from "../domain/player";
 
 type MatchdayView = "PENDING" | "RESULTS";
 
@@ -16,10 +17,12 @@ interface StartCareerInput {
   clubs: Club[];
   competitions: Competition[];
   fixtures: Fixture[];
+  players: Player[];
 }
 
 interface CareerState {
   careerId: string | null;
+  players: Player[];
   seasonId: string | null;
   managedClubId: string | null;
 
@@ -52,6 +55,7 @@ export const useCareerStore = create<CareerState>((set) => ({
   lastPlayedMatchday: null,
   matchdayView: "PENDING",
 
+  players: [],
   clubs: [],
   competitions: [],
   fixtures: [],
@@ -64,6 +68,7 @@ export const useCareerStore = create<CareerState>((set) => ({
     clubs,
     competitions,
     fixtures,
+    players,
   }) => {
     const primaryCompetition = competitions[0];
 
@@ -84,6 +89,7 @@ export const useCareerStore = create<CareerState>((set) => ({
       competitions,
       fixtures,
       standings,
+      players,
 
       currentMatchday: 1,
       lastPlayedMatchday: null,
@@ -164,6 +170,7 @@ export const useCareerStore = create<CareerState>((set) => ({
       lastPlayedMatchday: null,
       matchdayView: "PENDING",
 
+      players: [],
       clubs: [],
       competitions: [],
       fixtures: [],

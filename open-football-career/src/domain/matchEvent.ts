@@ -9,6 +9,10 @@ export interface MatchEvent {
   fixtureId: string;
   minute: number;
   type: MatchEventType;
+
   clubId?: string;
+  playerId?: string;
+  assistPlayerId?: string;
+
   description: string;
 }
