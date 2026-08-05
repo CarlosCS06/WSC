@@ -21,6 +21,7 @@ import type { MatchDecision } from "../../domain/matchDecision";
 import { InjurySubstitutionPanel } from "./InjurySubstitutionPanel";
 import type { TeamMatchState } from "../../domain/teamMatchState";
 import { selectCpuTacticalSubstitution } from "../../core/match/selectCpuTacticalSubstitution";
+import { ManualSubstitutionPanel } from "./ManualSubstitutionPanel";
 
 interface MatchPageProps {
   fixture: Fixture;
@@ -76,6 +77,8 @@ export function MatchPage({
     firstHalfAddedMinutes: 0,
     secondHalfAddedMinutes: 0,
   });
+
+    const [manualSubstitutionOpen, setManualSubstitutionOpen] =useState(false);
 
   const currentMinute = Math.floor(clock.elapsedSeconds / 60);
 
@@ -375,6 +378,69 @@ export function MatchPage({
     setPlayerStates(result.playerStates);
   }
 
+  function handleManualSubstitution(
+    outgoingPlayerId: string,
+    incomingPlayerId: string,
+  ) {
+    if (!simulation || substitutionsRemaining <= 0) {
+      return;
+    }
+
+    const outgoingPlayer = players.find(
+      (player) => player.id === outgoingPlayerId,
+    );
+
+    const incomingPlayer = players.find(
+      (player) => player.id === incomingPlayerId,
+    );
+
+    if (!outgoingPlayer || !incomingPlayer) {
+      return;
+    }
+
+    const minute = Math.floor(clock.elapsedSeconds / 60);
+
+    const event: MatchEvent = {
+      id: `${fixture.id}_USER_SUB_${minute}_${outgoingPlayerId}`,
+      fixtureId: fixture.id,
+      minute,
+      type: "SUBSTITUTION",
+      clubId: managedClubId,
+      playerId: outgoingPlayerId,
+      secondaryPlayerId: incomingPlayerId,
+      description:
+        `Cambio: sale ${outgoingPlayer.shortName} y entra ` +
+        `${incomingPlayer.shortName}.`,
+    };
+
+    const result = applyMatchEvent(playerStates, event);
+
+    setPlayerStates(result.playerStates);
+
+    setSimulation({
+      ...simulation,
+      events: [...simulation.events, event].sort(
+        (a, b) => a.minute - b.minute,
+      ),
+    });
+
+    setTeamStates((current) =>
+      current.map((state) =>
+        state.clubId === managedClubId
+          ? {
+              ...state,
+              substitutionsUsed:
+                state.substitutionsUsed + 1,
+              substitutionWindowsUsed:
+                state.substitutionWindowsUsed + 1,
+            }
+          : state,
+      ),
+    );
+
+    setManualSubstitutionOpen(false);
+  }
+
   useEffect(() => {
   if (
     !simulation ||
@@ -572,7 +638,7 @@ export function MatchPage({
       return;
     }
 
-    if (pendingDecision) {
+    if (pendingDecision || manualSubstitutionOpen) {
       return;
     }
 
@@ -619,6 +685,15 @@ export function MatchPage({
 
     return () => window.clearInterval(intervalId);
   }, [simulation, clock.period, pendingDecision,]);
+
+  const managedTeamState = teamStates.find(
+    (state) => state.clubId === managedClubId,
+  );
+
+  const substitutionsRemaining = managedTeamState
+    ? managedTeamState.maximumSubstitutions -
+      managedTeamState.substitutionsUsed
+    : 0;
 
   return (
     <main className="game-page">
@@ -680,31 +755,42 @@ export function MatchPage({
             </strong>
           </div>
 
-          {simulation &&
-            clock.period !== "FULL_TIME" &&
-            clock.period !== "HALF_TIME" && (
-              <div className="speed-controls">
-                {([1, 2, 4, 8] as MatchSpeed[]).map((speed) => (
-                  <button
-                    key={speed}
-                    type="button"
-                    className={
-                      clock.speed === speed
-                        ? "speed-button active-speed"
-                        : "speed-button"
-                    }
-                    onClick={() =>
-                      setClock((current) => ({
-                        ...current,
-                        speed,
-                      }))
-                    }
-                  >
-                    x{speed}
-                  </button>
-                ))}
-              </div>
-            )}
+          {simulation && clock.period !== "FULL_TIME" && (
+            <>
+              {clock.period !== "HALF_TIME" && (
+                <div className="speed-controls">
+                  {([1, 2, 4, 8] as MatchSpeed[]).map((speed) => (
+                    <button
+                      key={speed}
+                      type="button"
+                      className={
+                        clock.speed === speed
+                          ? "speed-button active-speed"
+                          : "speed-button"
+                      }
+                      onClick={() =>
+                        setClock((current) => ({
+                          ...current,
+                          speed,
+                        }))
+                      }
+                    >
+                      x{speed}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <button
+                type="button"
+                className="secondary-button manual-change-button"
+                disabled={substitutionsRemaining <= 0}
+                onClick={() => setManualSubstitutionOpen(true)}
+              >
+                Hacer cambios ({substitutionsRemaining})
+              </button>
+            </>
+          )}
 
           <article
             className={
@@ -750,6 +836,17 @@ export function MatchPage({
                 </article>
               ))}
             </section>
+
+            {manualSubstitutionOpen && (
+              <ManualSubstitutionPanel
+                clubId={managedClubId}
+                players={players}
+                playerStates={playerStates}
+                substitutionsRemaining={substitutionsRemaining}
+                onConfirm={handleManualSubstitution}
+                onClose={() => setManualSubstitutionOpen(false)}
+              />
+            )}
 
             {pendingDecision && (
               <InjurySubstitutionPanel

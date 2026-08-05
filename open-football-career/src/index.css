@@ -652,4 +652,61 @@ button,
 .substitute-option small {
   white-space: nowrap;
 }
+
+.manual-substitution-panel {
+  display: grid;
+  gap: 16px;
+  padding: 20px;
+  border: 2px solid #168447;
+  border-radius: 16px;
+  background: white;
+}
+
+.substitution-panel-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.substitution-player-list {
+  display: grid;
+  gap: 8px;
+}
+
+.substitution-player {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto auto;
+  gap: 10px;
+  align-items: center;
+  min-height: 52px;
+  padding: 10px 12px;
+  border: 1px solid #d7e1da;
+  border-radius: 10px;
+  background: #f7faf8;
+  cursor: pointer;
+  text-align: left;
+}
+
+.selected-player {
+  border-color: #168447;
+  background: #e7f6ec;
+}
+
+.manual-change-button {
+  width: auto;
+}
+
+@media (max-width: 650px) {
+  .substitution-player {
+    grid-template-columns: 1fr auto;
+  }
+
+  .substitution-player span {
+    font-size: 13px;
+  }
+
+  .manual-change-button {
+    width: 100%;
+  }
+}
 }
