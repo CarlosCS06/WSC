@@ -26,6 +26,8 @@ export function calculateLiveStatistics({
     (event) => event.minute <= currentMinute,
   );
 
+  let nextPossessionStart = 0;
+
   for (const event of applicableEvents) {
     const statistics =
       event.clubId === homeClubId
@@ -40,17 +42,21 @@ export function calculateLiveStatistics({
 
     switch (event.type) {
       case "POSSESSION": {
-        const eventStartSeconds = event.minute * 60;
+        const durationSeconds = event.durationSeconds ?? 0;
+        const eventStartSeconds = Math.max(
+          event.minute * 60,
+          nextPossessionStart,
+        );
+        const eventEndSeconds = eventStartSeconds + durationSeconds;
 
-        const availableDuration = Math.max(
+        nextPossessionStart = eventEndSeconds;
+
+        const countedSeconds = Math.max(
           0,
-          elapsedSeconds - eventStartSeconds,
+          Math.min(elapsedSeconds - eventStartSeconds, durationSeconds),
         );
 
-        statistics.possessionSeconds += Math.min(
-          event.durationSeconds ?? 0,
-          availableDuration,
-        );
+        statistics.possessionSeconds += countedSeconds;
 
         break;
       }
