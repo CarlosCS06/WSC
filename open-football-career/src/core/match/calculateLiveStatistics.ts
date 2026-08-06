@@ -114,6 +114,9 @@ export function calculateLiveStatistics({
         statistics.shots += 1;
         break;
 
+      case "GOAL":
+        break;
+
       case "SUBSTITUTION":
         statistics.substitutions += 1;
         break;

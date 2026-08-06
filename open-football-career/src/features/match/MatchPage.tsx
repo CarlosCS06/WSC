@@ -80,12 +80,16 @@ export function MatchPage({
       return [];
     }
 
-    return simulation.events.filter(
-      (event) =>
-        event.minute <= currentMinute &&
-        event.visible !== false,
-    );
-  }, [simulation, currentMinute]);
+    return simulation.events.filter((event) => {
+      const eventSeconds =
+        event.minute * 60 + (event.second ?? 0);
+
+      return (
+        eventSeconds <= clock.elapsedSeconds &&
+        event.visible !== false
+      );
+    });
+  }, [simulation, clock.elapsedSeconds]);
 
 
   useEffect(() => {

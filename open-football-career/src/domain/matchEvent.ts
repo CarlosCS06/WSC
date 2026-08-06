@@ -38,6 +38,7 @@ export interface MatchEvent {
   secondaryPlayerId?: string;
   assistPlayerId?: string;
 
+  second?: number;
   durationSeconds?: number;
   visible?: boolean;
 
