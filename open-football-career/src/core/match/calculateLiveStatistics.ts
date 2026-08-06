@@ -17,70 +17,133 @@ export function calculateLiveStatistics({
   home: TeamMatchStatistics;
   away: TeamMatchStatistics;
 } {
-  const visibleEvents = events.filter(
-    (event) => event.minute <= currentMinute,
-  );
-
   const home = createEmptyStatistics(homeClubId);
   const away = createEmptyStatistics(awayClubId);
 
-  for (const event of visibleEvents) {
-    const stats =
+  const elapsedSeconds = currentMinute * 60;
+
+  const applicableEvents = events.filter(
+    (event) => event.minute <= currentMinute,
+  );
+
+  for (const event of applicableEvents) {
+    const statistics =
       event.clubId === homeClubId
         ? home
         : event.clubId === awayClubId
           ? away
           : null;
 
-    if (!stats) {
+    if (!statistics) {
       continue;
     }
 
     switch (event.type) {
-      case "GOAL":
-      // goal events are derived from a prior shot/shot_on_target event,
-      // skip here to avoid double-counting
-      break;
-        case "SHOT":
-        stats.shots += 1;
+      case "POSSESSION": {
+        const eventStartSeconds = event.minute * 60;
+
+        const availableDuration = Math.max(
+          0,
+          elapsedSeconds - eventStartSeconds,
+        );
+
+        statistics.possessionSeconds += Math.min(
+          event.durationSeconds ?? 0,
+          availableDuration,
+        );
+
+        break;
+      }
+
+      case "SHOT":
+        statistics.shots += 1;
         break;
 
-        case "SHOT_ON_TARGET":
-        stats.shots += 1;
-        stats.shotsOnTarget += 1;
+      case "SHOT_ON_TARGET":
+        statistics.shots += 1;
+        statistics.shotsOnTarget += 1;
         break;
 
-        case "CORNER":
-        stats.corners += 1;
+      case "SAVE":
+        statistics.saves += 1;
         break;
 
-        case "OFFSIDE":
-        stats.offsides += 1;
+      case "FOUL":
+        statistics.fouls += 1;
         break;
 
-        case "PENALTY_SCORED":
-        stats.shots += 1;
-        stats.shotsOnTarget += 1;
+      case "YELLOW_CARD":
+        statistics.yellowCards += 1;
         break;
 
-        case "PENALTY_MISSED":
-        stats.shots += 1;
+      case "SECOND_YELLOW_CARD":
+        statistics.yellowCards += 1;
+        statistics.redCards += 1;
+        break;
+
+      case "RED_CARD":
+        statistics.redCards += 1;
+        break;
+
+      case "CORNER":
+        statistics.corners += 1;
+        break;
+
+      case "OFFSIDE":
+        statistics.offsides += 1;
+        break;
+
+      case "PENALTY_AWARDED":
+        statistics.penaltiesAwarded += 1;
+        break;
+
+      case "PENALTY_SCORED":
+        statistics.penaltiesScored += 1;
+        statistics.shots += 1;
+        statistics.shotsOnTarget += 1;
+        break;
+
+      case "PENALTY_MISSED":
+        statistics.penaltiesMissed += 1;
+        statistics.shots += 1;
+        break;
+
+      case "SUBSTITUTION":
+        statistics.substitutions += 1;
+        break;
+
+      default:
         break;
     }
   }
 
-  // statistics are now derived exclusively from real events; no artificial
-  // approximations based on minute progress.
+  calculatePossessionPercentages(home, away);
 
-  const homePossession = Math.max(
-    35,
-    Math.min(65, 52 + home.shots - away.shots),
+  return { home, away };
+}
+
+function calculatePossessionPercentages(
+  home: TeamMatchStatistics,
+  away: TeamMatchStatistics,
+): void {
+  const totalPossessionSeconds =
+    home.possessionSeconds +
+    away.possessionSeconds;
+
+  if (totalPossessionSeconds <= 0) {
+    home.possession = 50;
+    away.possession = 50;
+    return;
+  }
+
+  const homePossession = Math.round(
+    (home.possessionSeconds /
+      totalPossessionSeconds) *
+      100,
   );
 
   home.possession = homePossession;
   away.possession = 100 - homePossession;
-
-  return { home, away };
 }
 
 function createEmptyStatistics(
@@ -88,14 +151,25 @@ function createEmptyStatistics(
 ): TeamMatchStatistics {
   return {
     clubId,
+
     possession: 50,
+    possessionSeconds: 0,
+
     shots: 0,
     shotsOnTarget: 0,
+    saves: 0,
+
     fouls: 0,
     yellowCards: 0,
     redCards: 0,
+
     corners: 0,
     offsides: 0,
+
+    penaltiesAwarded: 0,
+    penaltiesScored: 0,
+    penaltiesMissed: 0,
+
     substitutions: 0,
   };
 }

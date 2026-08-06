@@ -80,8 +80,10 @@ export function MatchPage({
       return [];
     }
 
-    return simulation.events.filter((event) =>
-      event.minute <= currentMinute,
+    return simulation.events.filter(
+      (event) =>
+        event.minute <= currentMinute &&
+        event.visible !== false,
     );
   }, [simulation, currentMinute]);
 

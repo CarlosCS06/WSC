@@ -6,6 +6,7 @@ import type { Player } from "../../domain/player";
 import { simulateMatch } from "./simulateMatch";
 import { generateMatchIncidents } from "./generateMatchIncidents";
 import { generateMatchActions } from "./generateMatchActions";
+import { generatePossessionEvents } from "./generatePossessionEvents";
 
 export interface SimulatedMatchWithEvents {
   fixtureId: string;
@@ -165,6 +166,12 @@ export function simulateMatchWithEvents(
     existingGoalEvents: [...homeGoalEvents, ...awayGoalEvents],
   });
 
+  const possessionEvents = generatePossessionEvents({
+    fixture,
+    homeClub,
+    awayClub,
+  });
+
   const events: MatchEvent[] = [
     {
       id: `${fixture.id}_KICK_OFF`,
@@ -176,6 +183,7 @@ export function simulateMatchWithEvents(
     ...homeGoalEvents,
     ...awayGoalEvents,
     ...actionEvents,
+    ...possessionEvents,
     ...incidentEvents,
     {
       id: `${fixture.id}_HALF_TIME`,
@@ -205,6 +213,7 @@ export function simulateMatchWithEvents(
 
     const priority: Record<MatchEvent["type"], number> = {
         KICK_OFF: 0,
+        POSSESSION: 0,
         FOUL: 1,
         OFFSIDE: 2,
         SHOT: 3,

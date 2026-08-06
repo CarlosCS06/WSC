@@ -1,6 +1,7 @@
 export type MatchEventType =
   | "KICK_OFF"
   | "FOUL"
+  | "POSSESSION"
   | "SHOT"
   | "SHOT_ON_TARGET"
   | "SAVE"
@@ -36,6 +37,9 @@ export interface MatchEvent {
   playerId?: string;
   secondaryPlayerId?: string;
   assistPlayerId?: string;
+
+  durationSeconds?: number;
+  visible?: boolean;
 
   injurySeverity?: InjurySeverity;
   description: string;

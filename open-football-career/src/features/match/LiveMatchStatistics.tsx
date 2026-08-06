@@ -41,6 +41,12 @@ export function LiveMatchStatistics({
       />
 
       <StatisticRow
+        label="Paradas"
+        home={home.saves}
+        away={away.saves}
+      />
+
+      <StatisticRow
         label="Faltas"
         home={home.fouls}
         away={away.fouls}
@@ -68,6 +74,12 @@ export function LiveMatchStatistics({
         label="Fueras de juego"
         home={home.offsides}
         away={away.offsides}
+      />
+
+      <StatisticRow
+        label="Penaltis"
+        home={`${home.penaltiesScored}/${home.penaltiesAwarded}`}
+        away={`${away.penaltiesScored}/${away.penaltiesAwarded}`}
       />
 
       <StatisticRow

@@ -164,6 +164,25 @@ function generateTeamActions({
     }
   }
 
+  const foulCount = randomInteger(5, 16);
+
+  for (let index = 0; index < foulCount; index += 1) {
+    const player = weightedRandomPlayer(
+      lineupPlayers,
+      defensiveActionWeight,
+    );
+
+    events.push({
+      id: `${fixture.id}_${side}_FOUL_${index}`,
+      fixtureId: fixture.id,
+      minute: randomMinute(),
+      type: "FOUL",
+      clubId: club.id,
+      playerId: player.id,
+      description: `Falta cometida por ${player.shortName}.`,
+    });
+  }
+
   const offsideCount = randomInteger(0, 4);
 
   for (let index = 0; index < offsideCount; index += 1) {
@@ -330,6 +349,25 @@ function shootingWeight(player: Player): number {
     player.attributes.dribbling * 0.3 +
     attackingPositionWeight(player)
   );
+}
+
+function defensiveActionWeight(player: Player): number {
+  switch (player.position) {
+    case "CB":
+    case "DM":
+      return 35;
+
+    case "RB":
+    case "LB":
+    case "CM":
+      return 24;
+
+    case "GK":
+      return 2;
+
+    default:
+      return 10;
+  }
 }
 
 function attackingPositionWeight(player: Player): number {
