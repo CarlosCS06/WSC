@@ -14,20 +14,7 @@ export interface SimulatedMatchWithEvents {
   events: MatchEvent[];
 }
 
-const goalEvents = [
-    ...goalEvents,
-    ...actionEvents,
-];
-
-const actionEvents = generateMatchActions({
-  fixture,
-  homeClub,
-  awayClub,
-  homeLineup,
-  awayLineup,
-  players,
-  existingGoalEvents: goalEvents,
-});
+// action events are generated per-simulation below using the created goal events
 
 function createGoalMinutes(totalGoals: number): number[] {
   const minutes: number[] = [];
@@ -168,6 +155,16 @@ export function simulateMatchWithEvents(
     players,
   });
 
+  const actionEvents = generateMatchActions({
+    fixture,
+    homeClub,
+    awayClub,
+    homeLineup,
+    awayLineup,
+    players,
+    existingGoalEvents: [...homeGoalEvents, ...awayGoalEvents],
+  });
+
   const events: MatchEvent[] = [
     {
       id: `${fixture.id}_KICK_OFF`,
@@ -178,6 +175,7 @@ export function simulateMatchWithEvents(
     },
     ...homeGoalEvents,
     ...awayGoalEvents,
+    ...actionEvents,
     ...incidentEvents,
     {
       id: `${fixture.id}_HALF_TIME`,
