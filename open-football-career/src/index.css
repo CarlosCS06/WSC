@@ -799,6 +799,30 @@ button,
   background: white;
 }
 
+.event-goal,
+.event-penalty_scored {
+  border-left: 5px solid #168447;
+  background: #e7f6ec;
+}
+
+.event-yellow_card {
+  border-left: 5px solid #d8aa00;
+}
+
+.event-red_card,
+.event-second_yellow_card {
+  border-left: 5px solid #b33a31;
+}
+
+.event-shot_on_target,
+.event-save {
+  border-left: 5px solid #2879a8;
+}
+
+.event-injury {
+  border-left: 5px solid #b7602a;
+}
+
 .statistics-header,
 .statistic-row {
   display: grid;

@@ -1,12 +1,21 @@
 export type MatchEventType =
   | "KICK_OFF"
   | "FOUL"
+  | "SHOT"
+  | "SHOT_ON_TARGET"
+  | "SAVE"
+  | "CORNER"
+  | "OFFSIDE"
+  | "PENALTY_AWARDED"
+  | "PENALTY_SCORED"
+  | "PENALTY_MISSED"
+  | "GOAL"
+  | "GOAL_DISALLOWED"
   | "YELLOW_CARD"
   | "SECOND_YELLOW_CARD"
   | "RED_CARD"
   | "INJURY"
   | "SUBSTITUTION"
-  | "GOAL"
   | "HALF_TIME"
   | "SECOND_HALF"
   | "FULL_TIME";
@@ -30,4 +39,5 @@ export interface MatchEvent {
 
   injurySeverity?: InjurySeverity;
   description: string;
+  relatedEventId?: string;
 }

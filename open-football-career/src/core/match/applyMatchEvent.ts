@@ -12,6 +12,23 @@ export function applyMatchEvent(
 ): ApplyMatchEventResult {
   let convertedEvent = event;
 
+  if (
+    event.type === "SHOT" ||
+    event.type === "SHOT_ON_TARGET" ||
+    event.type === "SAVE" ||
+    event.type === "CORNER" ||
+    event.type === "OFFSIDE" ||
+    event.type === "PENALTY_AWARDED" ||
+    event.type === "PENALTY_SCORED" ||
+    event.type === "PENALTY_MISSED" ||
+    event.type === "GOAL_DISALLOWED"
+  ) {
+    return {
+      playerStates,
+      convertedEvent: event,
+    };
+  }
+
   const updatedStates = playerStates.map((playerState) => {
     if (playerState.playerId !== event.playerId) {
       return playerState;

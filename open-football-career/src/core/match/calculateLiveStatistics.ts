@@ -38,56 +38,39 @@ export function calculateLiveStatistics({
 
     switch (event.type) {
       case "GOAL":
+      // goal events are derived from a prior shot/shot_on_target event,
+      // skip here to avoid double-counting
+      break;
+        case "SHOT":
+        stats.shots += 1;
+        break;
+
+        case "SHOT_ON_TARGET":
         stats.shots += 1;
         stats.shotsOnTarget += 1;
         break;
 
-      case "FOUL":
-        stats.fouls += 1;
+        case "CORNER":
+        stats.corners += 1;
         break;
 
-      case "YELLOW_CARD":
-        stats.yellowCards += 1;
-        stats.fouls += 1;
+        case "OFFSIDE":
+        stats.offsides += 1;
         break;
 
-      case "SECOND_YELLOW_CARD":
-        stats.yellowCards += 1;
-        stats.redCards += 1;
-        stats.fouls += 1;
+        case "PENALTY_SCORED":
+        stats.shots += 1;
+        stats.shotsOnTarget += 1;
         break;
 
-      case "RED_CARD":
-        stats.redCards += 1;
-        stats.fouls += 1;
-        break;
-
-      case "SUBSTITUTION":
-        stats.substitutions += 1;
+        case "PENALTY_MISSED":
+        stats.shots += 1;
         break;
     }
   }
 
-  const minuteProgress = Math.max(1, currentMinute);
-
-  home.shots += Math.floor(minuteProgress / 15);
-  away.shots += Math.floor(minuteProgress / 17);
-
-  home.shotsOnTarget = Math.min(
-    home.shots,
-    home.shotsOnTarget + Math.floor(minuteProgress / 32),
-  );
-
-  away.shotsOnTarget = Math.min(
-    away.shots,
-    away.shotsOnTarget + Math.floor(minuteProgress / 35),
-  );
-
-  home.corners = Math.floor(minuteProgress / 24);
-  away.corners = Math.floor(minuteProgress / 27);
-
-  home.offsides = Math.floor(minuteProgress / 38);
-  away.offsides = Math.floor(minuteProgress / 42);
+  // statistics are now derived exclusively from real events; no artificial
+  // approximations based on minute progress.
 
   const homePossession = Math.max(
     35,

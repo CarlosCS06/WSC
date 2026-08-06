@@ -762,6 +762,26 @@ export function MatchPage({
           />
         )}
 
+        {clock.period === "PRE_MATCH" && (
+          <section className="lineups-preview">
+            <LiveLineupColumn
+              title={homeClub.name}
+              lineup={homeLineup}
+              players={players}
+              playerStates={playerStates}
+              events={visibleEvents}
+            />
+
+            <LiveLineupColumn
+              title={awayClub.name}
+              lineup={awayLineup}
+              players={players}
+              playerStates={playerStates}
+              events={visibleEvents}
+            />
+          </section>
+        )}
+
         {!simulation && (
           <button
             className="primary-button"
@@ -779,11 +799,7 @@ export function MatchPage({
 
               {visibleEvents.map((event) => (
                 <article
-                  className={
-                    event.type === "GOAL"
-                      ? "match-event goal-event"
-                      : "match-event"
-                  }
+                  className={`match-event event-${event.type.toLowerCase()}`}
                   key={event.id}
                 >
                   <strong>{event.minute}'</strong>

@@ -5,6 +5,7 @@ import type { MatchEvent } from "../../domain/matchEvent";
 import type { Player } from "../../domain/player";
 import { simulateMatch } from "./simulateMatch";
 import { generateMatchIncidents } from "./generateMatchIncidents";
+import { generateMatchActions } from "./generateMatchActions";
 
 export interface SimulatedMatchWithEvents {
   fixtureId: string;
@@ -12,6 +13,21 @@ export interface SimulatedMatchWithEvents {
   awayGoals: number;
   events: MatchEvent[];
 }
+
+const goalEvents = [
+    ...goalEvents,
+    ...actionEvents,
+];
+
+const actionEvents = generateMatchActions({
+  fixture,
+  homeClub,
+  awayClub,
+  homeLineup,
+  awayLineup,
+  players,
+  existingGoalEvents: goalEvents,
+});
 
 function createGoalMinutes(totalGoals: number): number[] {
   const minutes: number[] = [];
@@ -190,17 +206,26 @@ export function simulateMatchWithEvents(
     }
 
     const priority: Record<MatchEvent["type"], number> = {
-      KICK_OFF: 0,
-      FOUL: 1,
-      YELLOW_CARD: 2,
-      SECOND_YELLOW_CARD: 3,
-      RED_CARD: 4,
-      INJURY: 5,
-      SUBSTITUTION: 6,
-      GOAL: 7,
-      HALF_TIME: 8,
-      SECOND_HALF: 9,
-      FULL_TIME: 10,
+        KICK_OFF: 0,
+        FOUL: 1,
+        OFFSIDE: 2,
+        SHOT: 3,
+        SHOT_ON_TARGET: 4,
+        SAVE: 5,
+        CORNER: 6,
+        PENALTY_AWARDED: 7,
+        PENALTY_MISSED: 8,
+        PENALTY_SCORED: 9,
+        GOAL: 10,
+        GOAL_DISALLOWED: 11,
+        YELLOW_CARD: 12,
+        SECOND_YELLOW_CARD: 13,
+        RED_CARD: 14,
+        INJURY: 15,
+        SUBSTITUTION: 16,
+        HALF_TIME: 17,
+        SECOND_HALF: 18,
+        FULL_TIME: 19,
     };
 
     return (
