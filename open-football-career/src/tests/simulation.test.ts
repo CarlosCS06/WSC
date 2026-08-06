@@ -52,4 +52,4 @@ describe("simulateMatch", () => {
     expect(Number.isInteger(result.homeGoals)).toBe(true);
     expect(Number.isInteger(result.awayGoals)).toBe(true);
   });
-});
+});

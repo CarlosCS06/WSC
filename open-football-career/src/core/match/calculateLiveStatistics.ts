@@ -6,6 +6,7 @@ interface CalculateLiveStatisticsInput {
   homeClubId: string;
   awayClubId: string;
   currentMinute: number;
+  elapsedSeconds?: number;
 }
 
 export function calculateLiveStatistics({
@@ -13,6 +14,7 @@ export function calculateLiveStatistics({
   homeClubId,
   awayClubId,
   currentMinute,
+  elapsedSeconds,
 }: CalculateLiveStatisticsInput): {
   home: TeamMatchStatistics;
   away: TeamMatchStatistics;
@@ -20,10 +22,25 @@ export function calculateLiveStatistics({
   const home = createEmptyStatistics(homeClubId);
   const away = createEmptyStatistics(awayClubId);
 
-  const elapsedSeconds = currentMinute * 60;
+  const totalElapsedSeconds =
+    elapsedSeconds ?? currentMinute * 60;
+
+  const isZeroIndexedPossession = events.some(
+    (event) => event.type === "POSSESSION" && event.minute === 0,
+  );
+
+  const getEventTimeSeconds = (event: MatchEvent): number => {
+    if (event.type === "POSSESSION") {
+      if (isZeroIndexedPossession) {
+        return event.minute * 60 + (event.second ?? 0);
+      }
+      return Math.max(0, (event.minute - 1) * 60 + (event.second ?? 0));
+    }
+    return event.minute * 60 + (event.second ?? 0);
+  };
 
   const applicableEvents = events.filter(
-    (event) => event.minute <= currentMinute,
+    (event) => getEventTimeSeconds(event) <= totalElapsedSeconds,
   );
 
   let nextPossessionStart = 0;
@@ -43,8 +60,9 @@ export function calculateLiveStatistics({
     switch (event.type) {
       case "POSSESSION": {
         const durationSeconds = event.durationSeconds ?? 0;
+        const rawStartSeconds = getEventTimeSeconds(event);
         const eventStartSeconds = Math.max(
-          event.minute * 60,
+          rawStartSeconds,
           nextPossessionStart,
         );
         const eventEndSeconds = eventStartSeconds + durationSeconds;
@@ -53,7 +71,7 @@ export function calculateLiveStatistics({
 
         const countedSeconds = Math.max(
           0,
-          Math.min(elapsedSeconds - eventStartSeconds, durationSeconds),
+          Math.min(totalElapsedSeconds - eventStartSeconds, durationSeconds),
         );
 
         statistics.possessionSeconds += countedSeconds;
@@ -181,4 +199,4 @@ function createEmptyStatistics(
 
     substitutions: 0,
   };
-}
+}

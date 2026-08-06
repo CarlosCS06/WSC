@@ -1,17 +1,11 @@
 import type { MatchPlayerState } from "../../domain/matchPlayerState";
 import type { Player } from "../../domain/player";
 
-interface UpdatePlayerFatigueInput {
-  playerStates: MatchPlayerState[];
-  players: Player[];
-  elapsedMinutes: number;
-}
-
-export function updatePlayerFatigue({
-  playerStates,
-  players,
-  elapsedMinutes,
-}: UpdatePlayerFatigueInput): MatchPlayerState[] {
+export function updatePlayerFatigue(
+  playerStates: MatchPlayerState[],
+  players: Player[],
+  elapsedMinutes: number,
+): MatchPlayerState[] {
   const playersById = new Map(
     players.map((player) => [player.id, player]),
   );
@@ -42,4 +36,4 @@ export function updatePlayerFatigue({
       ),
     };
   });
-}
+}

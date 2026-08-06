@@ -2,8 +2,16 @@ import type { Club } from "../../domain/club";
 import type { Fixture } from "../../domain/fixture";
 import type { Lineup } from "../../domain/lineup";
 import type { MatchEvent } from "../../domain/matchEvent";
+import type { MatchPlayerState } from "../../domain/matchPlayerState";
 import type { Player } from "../../domain/player";
 import { generateMatchIncidents } from "./generateMatchIncidents";
+import { applyMatchEvent } from "./applyMatchEvent";
+import { createLivePlayerStates } from "./createLivePlayerStates";
+import { updatePlayerFatigue } from "./updatePlayerFatigue";
+import {
+  calculateLiveTeamStrength,
+  type LiveTeamStrength,
+} from "./calculateLiveTeamStrength";
 
 export interface ChronologicalMatchResult {
   fixtureId: string;
@@ -16,8 +24,8 @@ interface TeamContext {
   club: Club;
   opponent: Club;
   lineup: Lineup;
-  players: Player[];
-  opponentPlayers: Player[];
+  playerStates: MatchPlayerState[];
+  allPlayers: Player[];
   side: "HOME" | "AWAY";
 }
 
@@ -29,8 +37,11 @@ export function simulateChronologicalMatch(
   awayLineup: Lineup,
   players: Player[],
 ): ChronologicalMatchResult {
-  const homePlayers = getStartingPlayers(homeLineup, players);
-  const awayPlayers = getStartingPlayers(awayLineup, players);
+  let playerStates = createLivePlayerStates({
+    homeLineup,
+    awayLineup,
+    players,
+  });
 
   const events: MatchEvent[] = [
     createEvent({
@@ -46,10 +57,49 @@ export function simulateChronologicalMatch(
   let homeGoals = 0;
   let awayGoals = 0;
 
+  const incidentEvents = generateMatchIncidents({
+    fixtureId: fixture.id,
+    homeLineup,
+    awayLineup,
+    players,
+  }).sort(compareMatchEvents);
+
   for (let minute = 1; minute <= 90; minute += 1) {
+    const minuteIncidents = incidentEvents.filter(
+      (event) => event.minute === minute,
+    );
+
+    for (const incident of minuteIncidents) {
+      const result = applyMatchEvent(
+        playerStates,
+        incident,
+      );
+
+      playerStates = result.playerStates;
+      events.push(result.convertedEvent);
+    }
+
+    playerStates = updatePlayerFatigue(
+      playerStates,
+      players,
+      1,
+    );
+
+    const homeStrength = calculateLiveTeamStrength({
+      clubId: homeClub.id,
+      players,
+      playerStates,
+    });
+
+    const awayStrength = calculateLiveTeamStrength({
+      clubId: awayClub.id,
+      players,
+      playerStates,
+    });
+
     const attackingSide = selectPossessionTeam(
-      homeClub,
-      awayClub,
+      homeStrength,
+      awayStrength,
     );
 
     const context: TeamContext =
@@ -58,16 +108,16 @@ export function simulateChronologicalMatch(
             club: homeClub,
             opponent: awayClub,
             lineup: homeLineup,
-            players: homePlayers,
-            opponentPlayers: awayPlayers,
+            playerStates,
+            allPlayers: players,
             side: "HOME",
           }
         : {
             club: awayClub,
             opponent: homeClub,
             lineup: awayLineup,
-            players: awayPlayers,
-            opponentPlayers: homePlayers,
+            playerStates,
+            allPlayers: players,
             side: "AWAY",
           };
 
@@ -83,10 +133,21 @@ export function simulateChronologicalMatch(
       description: "",
     });
 
-    const chanceProbability = calculateChanceProbability(
-      context.club,
-      context.opponent,
-    );
+    const attackingStrength =
+      context.side === "HOME"
+        ? homeStrength
+        : awayStrength;
+
+    const defendingStrength =
+      context.side === "HOME"
+        ? awayStrength
+        : homeStrength;
+
+    const chanceProbability =
+      calculateChanceProbability(
+        attackingStrength,
+        defendingStrength,
+      );
 
     if (Math.random() > chanceProbability) {
       continue;
@@ -96,6 +157,7 @@ export function simulateChronologicalMatch(
       fixture,
       minute,
       context,
+      defendingStrength,
     });
 
     events.push(...action.events);
@@ -108,15 +170,6 @@ export function simulateChronologicalMatch(
       }
     }
   }
-
-  const incidentEvents = generateMatchIncidents({
-    fixtureId: fixture.id,
-    homeLineup,
-    awayLineup,
-    players,
-  });
-
-  events.push(...incidentEvents);
 
   events.push(
     createEvent({
@@ -157,12 +210,14 @@ interface GenerateAttackingActionInput {
   fixture: Fixture;
   minute: number;
   context: TeamContext;
+  defendingStrength: LiveTeamStrength;
 }
 
 function generateAttackingAction({
   fixture,
   minute,
   context,
+  defendingStrength,
 }: GenerateAttackingActionInput): {
   events: MatchEvent[];
   goal: boolean;
@@ -170,9 +225,33 @@ function generateAttackingAction({
   const events: MatchEvent[] = [];
   const second = randomInteger(5, 53);
 
+  const activeAttackers = getActivePlayers(
+    context.club.id,
+    context.playerStates,
+    context.allPlayers,
+  );
+
+  const activeDefenders = getActivePlayers(
+    context.opponent.id,
+    context.playerStates,
+    context.allPlayers,
+  );
+
+  if (activeAttackers.length === 0) {
+    return {
+      events: [],
+      goal: false,
+    };
+  }
+
   const attacker = weightedRandomPlayer(
-    context.players,
-    attackingWeight,
+    activeAttackers,
+    (player) =>
+      attackingWeight(player) *
+      getPlayerPerformanceFactor(
+        player.id,
+        context.playerStates,
+      ),
   );
 
   // Fuera de juego
@@ -237,13 +316,13 @@ function generateAttackingAction({
   });
 
   const goalkeeper = findGoalkeeper(
-    context.opponentPlayers,
+    activeDefenders,
   );
 
   const saveProbability = calculateSaveProbability(
     attacker,
     goalkeeper,
-    context.opponent,
+    defendingStrength,
   );
 
   if (Math.random() < saveProbability) {
@@ -297,14 +376,22 @@ function generateAttackingAction({
     return { events, goal: false };
   }
 
-  const assistantCandidates = context.players.filter(
+  const assistantCandidates = activeAttackers.filter(
     (player) => player.id !== attacker.id,
   );
 
-  const assistant = weightedRandomPlayer(
-    assistantCandidates,
-    assistingWeight,
-  );
+  const assistant =
+    assistantCandidates.length > 0
+      ? weightedRandomPlayer(
+          assistantCandidates,
+          (player) =>
+            assistingWeight(player) *
+            getPlayerPerformanceFactor(
+              player.id,
+              context.playerStates,
+            ),
+        )
+      : attacker;
 
   events.push({
     id: `${fixture.id}_GOAL_${context.side}_${minute}_${second}`,
@@ -402,42 +489,59 @@ function generatePenaltyAction({
 }
 
 function selectPossessionTeam(
-  homeClub: Club,
-  awayClub: Club,
+  home: LiveTeamStrength,
+  away: LiveTeamStrength,
 ): "HOME" | "AWAY" {
+  const homeNumericalFactor =
+    home.playersOnPitch / 11;
+
+  const awayNumericalFactor =
+    away.playersOnPitch / 11;
+
   const homeStrength =
-    homeClub.midfield * 0.65 +
-    homeClub.reputation * 0.2 +
-    homeClub.attack * 0.15 +
-    3;
+    home.midfield *
+    homeNumericalFactor *
+    1.035;
 
   const awayStrength =
-    awayClub.midfield * 0.65 +
-    awayClub.reputation * 0.2 +
-    awayClub.attack * 0.15;
+    away.midfield *
+    awayNumericalFactor;
 
-  const homeProbability =
-    homeStrength / (homeStrength + awayStrength);
+  const totalStrength =
+    homeStrength + awayStrength;
 
-  return Math.random() < homeProbability
+  if (totalStrength <= 0) {
+    return Math.random() < 0.5
+      ? "HOME"
+      : "AWAY";
+  }
+
+  return Math.random() <
+    homeStrength / totalStrength
     ? "HOME"
     : "AWAY";
 }
 
 function calculateChanceProbability(
-  attackingClub: Club,
-  defendingClub: Club,
+  attacking: LiveTeamStrength,
+  defending: LiveTeamStrength,
 ): number {
+  const numericalAdvantage =
+    attacking.playersOnPitch -
+    defending.playersOnPitch;
+
   const difference =
-    attackingClub.attack +
-    attackingClub.midfield * 0.35 -
-    defendingClub.defence -
-    defendingClub.midfield * 0.2;
+    attacking.attack +
+    attacking.midfield * 0.35 -
+    defending.defence -
+    defending.midfield * 0.2;
 
   return clamp(
-    0.13 + difference / 600,
-    0.07,
-    0.24,
+    0.12 +
+      difference / 420 +
+      numericalAdvantage * 0.018,
+    0.045,
+    0.3,
   );
 }
 
@@ -458,33 +562,75 @@ function calculateOnTargetProbability(
 function calculateSaveProbability(
   attacker: Player,
   goalkeeper: Player | undefined,
-  defendingClub: Club,
+  defending: LiveTeamStrength,
 ): number {
-  const goalkeeperStrength =
-    goalkeeper?.attributes.goalkeeping ??
-    defendingClub.defence;
+  const goalkeeperStrength = goalkeeper
+    ? goalkeeper.attributes.goalkeeping
+    : defending.goalkeeping * 0.55;
 
   return clamp(
-    0.55 +
+    0.5 +
       goalkeeperStrength / 300 -
-      attacker.attributes.shooting / 350,
-    0.3,
-    0.82,
+      attacker.attributes.shooting / 340,
+    0.18,
+    0.84,
   );
 }
 
-function getStartingPlayers(
-  lineup: Lineup,
+function getActivePlayers(
+  clubId: string,
+  playerStates: MatchPlayerState[],
   players: Player[],
 ): Player[] {
   const playersById = new Map(
     players.map((player) => [player.id, player]),
   );
 
-  return lineup.starters
-    .map((slot) => playersById.get(slot.playerId))
-    .filter((player): player is Player => Boolean(player));
+  return playerStates
+    .filter(
+      (state) =>
+        state.clubId === clubId &&
+        state.isOnPitch &&
+        !state.sentOff,
+    )
+    .map((state) =>
+      playersById.get(state.playerId),
+    )
+    .filter(
+      (player): player is Player =>
+        Boolean(player),
+    );
 }
+
+function getPlayerPerformanceFactor(
+  playerId: string,
+  playerStates: MatchPlayerState[],
+): number {
+  const state = playerStates.find(
+    (item) => item.playerId === playerId,
+  );
+
+  if (!state) {
+    return 1;
+  }
+
+  const fatigueFactor =
+    1 - Math.min(100, state.fatigue) * 0.004;
+
+  const injuryFactor =
+    state.injured ? 0.65 : 1;
+
+  const yellowCardFactor =
+    state.yellowCards > 0 ? 0.96 : 1;
+
+  return Math.max(
+    0.45,
+    fatigueFactor *
+      injuryFactor *
+      yellowCardFactor,
+  );
+}
+
 
 function findGoalkeeper(
   players: Player[],

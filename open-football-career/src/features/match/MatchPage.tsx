@@ -250,19 +250,21 @@ export function MatchPage({
 
   const liveStatistics = useMemo(
     () =>
-        calculateLiveStatistics({
+      calculateLiveStatistics({
         events: simulation?.events ?? [],
         homeClubId: homeClub.id,
         awayClubId: awayClub.id,
         currentMinute,
-        }),
+        elapsedSeconds: clock.elapsedSeconds,
+      }),
     [
-        simulation,
-        homeClub.id,
-        awayClub.id,
-        currentMinute,
+      simulation,
+      homeClub.id,
+      awayClub.id,
+      currentMinute,
+      clock.elapsedSeconds,
     ],
-    );
+  );
 
   function handleStart() {
     const result = simulateMatchWithEvents(
