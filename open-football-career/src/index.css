@@ -709,4 +709,84 @@ button,
     width: 100%;
   }
 }
+
+.live-lineup-row {
+  display: grid;
+  grid-template-columns: 38px 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #f1f6f3;
+}
+
+.lineup-position {
+  font-size: 12px;
+  font-weight: 800;
+  color: #168447;
+}
+
+.lineup-history {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.lineup-person {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.substituted-player {
+  opacity: 0.38;
+  filter: grayscale(1);
+}
+
+.substitution-arrow {
+  font-weight: 900;
+  color: #168447;
+}
+
+.replacement-player {
+  color: #126a39;
+}
+
+.replacement-player em {
+  font-size: 12px;
+  font-style: normal;
+  color: #68746d;
+}
+
+.live-bench {
+  display: grid;
+  gap: 7px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid #dbe5de;
+}
+
+.live-bench h3 {
+  margin: 0 0 5px;
+}
+
+.bench-player {
+  display: grid;
+  grid-template-columns: 38px 1fr 32px;
+  gap: 8px;
+  padding: 7px 9px;
+  border-radius: 8px;
+  background: #f7faf8;
+}
+
+@media (max-width: 650px) {
+  .lineup-history {
+    gap: 5px;
+  }
+
+  .lineup-person {
+    font-size: 14px;
+  }
+}
 }
