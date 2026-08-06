@@ -23,6 +23,8 @@ import type { TeamMatchState } from "../../domain/teamMatchState";
 import { selectCpuTacticalSubstitution } from "../../core/match/selectCpuTacticalSubstitution";
 import { ManualSubstitutionPanel } from "./ManualSubstitutionPanel";
 import { LiveLineupColumn } from "./LiveLineupColumn";
+import { calculateLiveStatistics } from "../../core/match/calculateLiveStatistics";
+import { LiveMatchStatistics } from "./LiveMatchStatistics";
 
 interface MatchPageProps {
   fixture: Fixture;
@@ -239,6 +241,22 @@ export function MatchPage({
     homeClub.id,
     awayClub.id,
   );
+
+  const liveStatistics = useMemo(
+    () =>
+        calculateLiveStatistics({
+        events: simulation?.events ?? [],
+        homeClubId: homeClub.id,
+        awayClubId: awayClub.id,
+        currentMinute,
+        }),
+    [
+        simulation,
+        homeClub.id,
+        awayClub.id,
+        currentMinute,
+    ],
+    );
 
   function handleStart() {
     const result = simulateMatchWithEvents(
@@ -658,26 +676,6 @@ export function MatchPage({
           </div>
         </header>
 
-        {clock.period === "PRE_MATCH" && (
-        <section className="lineups-preview">
-          <LiveLineupColumn
-            title={homeClub.name}
-            lineup={homeLineup}
-            players={players}
-            playerStates={playerStates}
-            events={visibleEvents}
-          />
-
-          <LiveLineupColumn
-            title={awayClub.name}
-            lineup={awayLineup}
-            players={players}
-            playerStates={playerStates}
-            events={visibleEvents}
-          />
-        </section>
-        )}
-
         <section className="match-scoreboard">
           <article
             className={
@@ -754,6 +752,15 @@ export function MatchPage({
             <strong>{awayClub.name}</strong>
           </article>
         </section>
+
+        {simulation && (
+          <LiveMatchStatistics
+            homeClub={homeClub}
+            awayClub={awayClub}
+            home={liveStatistics.home}
+            away={liveStatistics.away}
+          />
+        )}
 
         {!simulation && (
           <button

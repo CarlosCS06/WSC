@@ -789,4 +789,56 @@ button,
     font-size: 14px;
   }
 }
+
+.live-statistics {
+  display: grid;
+  gap: 8px;
+  padding: 18px;
+  border: 1px solid #dbe5de;
+  border-radius: 16px;
+  background: white;
+}
+
+.statistics-header,
+.statistic-row {
+  display: grid;
+  grid-template-columns: 70px 1fr 70px;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+}
+
+.statistics-header h2 {
+  margin: 0;
+}
+
+.statistic-row {
+  min-height: 38px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: #f1f6f3;
+}
+
+.statistic-row strong:first-child {
+  text-align: left;
+}
+
+.statistic-row strong:last-child {
+  text-align: right;
+}
+
+.statistic-row span {
+  color: #68746d;
+}
+
+@media (max-width: 650px) {
+  .statistics-header,
+  .statistic-row {
+    grid-template-columns: 55px 1fr 55px;
+  }
+
+  .live-statistics {
+    padding: 12px;
+  }
+}
 }
