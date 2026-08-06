@@ -22,6 +22,7 @@ import { InjurySubstitutionPanel } from "./InjurySubstitutionPanel";
 import type { TeamMatchState } from "../../domain/teamMatchState";
 import { selectCpuTacticalSubstitution } from "../../core/match/selectCpuTacticalSubstitution";
 import { ManualSubstitutionPanel } from "./ManualSubstitutionPanel";
+import { LiveLineupColumn } from "./LiveLineupColumn";
 
 interface MatchPageProps {
   fixture: Fixture;
@@ -59,16 +60,6 @@ export function MatchPage({
   const [teamStates, setTeamStates] = useState<TeamMatchState[]>([]);
     
   const [cpuSubstitutionMinutes, setCpuSubstitutionMinutes] = useState<Set<number>>(new Set());
-
-  type MatchPlaybackStatus =
-  | "PRE_MATCH"
-  | "PLAYING_FIRST_HALF"
-  | "HALF_TIME"
-  | "PLAYING_SECOND_HALF"
-  | "FULL_TIME";
-
-    const [playbackStatus, setPlaybackStatus] =
-    useState<MatchPlaybackStatus>("PRE_MATCH");
 
   const [clock, setClock] = useState<MatchClockState>({
     elapsedSeconds: 0,
@@ -242,11 +233,6 @@ export function MatchPage({
     fixture.id,
     cpuSubstitutionMinutes,
   ]);
-
-  useEffect(() => {
-    // placeholder: `pendingDecision` will be handled by UI/logic later
-    if (!pendingDecision) return;
-  }, [pendingDecision]);
 
   const currentScore = calculateVisibleScore(
     visibleEvents,
@@ -588,48 +574,6 @@ export function MatchPage({
       return;
     }
 
-    const isPlaying =
-      playbackStatus === "PLAYING_FIRST_HALF" ||
-      playbackStatus === "PLAYING_SECOND_HALF";
-
-    if (!isPlaying) {
-      return;
-    }
-
-    const nextEvent = simulation.events.find(
-      (e) => e.minute > currentMinute,
-    );
-
-    if (!nextEvent) {
-      setPlaybackStatus("FULL_TIME");
-      return;
-    }
-
-    if (
-      playbackStatus === "PLAYING_FIRST_HALF" &&
-      nextEvent.type === "HALF_TIME"
-    ) {
-      const timeoutId = window.setTimeout(() => {
-        setPlaybackStatus("HALF_TIME");
-      }, 900);
-
-      return () => window.clearTimeout(timeoutId);
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      if (nextEvent.type === "FULL_TIME") {
-        setPlaybackStatus("FULL_TIME");
-      }
-    }, getEventDelay(nextEvent.type));
-
-    return () => window.clearTimeout(timeoutId);
-  }, [simulation, currentMinute, playbackStatus]);
-
-  useEffect(() => {
-    if (!simulation) {
-      return;
-    }
-
     const isRunning =
       clock.period === "FIRST_HALF" ||
       clock.period === "SECOND_HALF";
@@ -684,7 +628,7 @@ export function MatchPage({
     }, 100);
 
     return () => window.clearInterval(intervalId);
-  }, [simulation, clock.period, pendingDecision,]);
+  }, [simulation, clock.period, pendingDecision, manualSubstitutionOpen,]);
 
   const managedTeamState = teamStates.find(
     (state) => state.clubId === managedClubId,
@@ -714,23 +658,23 @@ export function MatchPage({
           </div>
         </header>
 
-        {playbackStatus === "PRE_MATCH" && (
+        {clock.period === "PRE_MATCH" && (
         <section className="lineups-preview">
-        <LineupColumn
+          <LiveLineupColumn
             title={homeClub.name}
             lineup={homeLineup}
             players={players}
             playerStates={playerStates}
             events={visibleEvents}
-        />
+          />
 
-        <LineupColumn
+          <LiveLineupColumn
             title={awayClub.name}
             lineup={awayLineup}
             players={players}
             playerStates={playerStates}
             events={visibleEvents}
-        />
+          />
         </section>
         )}
 
@@ -912,20 +856,6 @@ export function MatchPage({
   );
 }
 
-function getEventDelay(type: MatchEvent["type"]): number {
-  switch (type) {
-    case "GOAL":
-      return 1_800;
-
-    case "HALF_TIME":
-    case "FULL_TIME":
-      return 1_200;
-
-    default:
-      return 650;
-  }
-}
-
 function calculateVisibleScore(
   events: MatchEvent[],
   homeClubId: string,
@@ -954,126 +884,3 @@ function calculateVisibleScore(
   return { home, away };
 }
 
-interface LineupColumnProps {
-  title: string;
-  lineup: Lineup;
-  players: Player[];
-  playerStates: MatchPlayerState[];
-  events: MatchEvent[];
-}
-
-function LineupColumn({
-  title,
-  lineup,
-  players,
-  playerStates,
-  events,
-}: LineupColumnProps) {
-  const playersById = new Map(
-    players.map((player) => [player.id, player]),
-  );
-
-  const clubStates = playerStates.filter(
-    (state) => state.clubId === lineup.clubId,
-  );
-
-  const substitutions = events.filter(
-    (event) =>
-      event.type === "SUBSTITUTION" &&
-      event.clubId === lineup.clubId &&
-      event.playerId &&
-      event.secondaryPlayerId,
-  );
-
-  const availableBench = clubStates.filter(
-    (state) => state.isAvailable,
-  );
-
-  return (
-    <article className="lineup-column">
-      <h2>{title}</h2>
-      <p>Formación {lineup.formation}</p>
-
-      <div className="lineup-list">
-        {lineup.starters.map((slot) => {
-          const starter = playersById.get(slot.playerId);
-
-          const playerChanges = substitutions.filter(
-            (event) => event.playerId === slot.playerId,
-          );
-
-          const firstChange = playerChanges[0];
-
-          const replacement = firstChange?.secondaryPlayerId
-            ? playersById.get(firstChange.secondaryPlayerId)
-            : null;
-
-          return (
-            <div
-              className="live-lineup-row"
-              key={slot.playerId}
-            >
-              <span className="lineup-position">
-                {slot.position}
-              </span>
-
-              <div className="lineup-history">
-                <div
-                  className={
-                    replacement
-                      ? "lineup-person substituted-player"
-                      : "lineup-person"
-                  }
-                >
-                  <strong>
-                    {starter?.shortName ?? slot.playerId}
-                  </strong>
-
-                  <small>{starter?.overall ?? "-"}</small>
-                </div>
-
-                {replacement && firstChange && (
-                  <>
-                    <span className="substitution-arrow">
-                      →
-                    </span>
-
-                    <div className="lineup-person replacement-player">
-                      <strong>{replacement.shortName}</strong>
-                      <small>{replacement.overall}</small>
-                      <em>{firstChange.minute}'</em>
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="live-bench">
-        <h3>Banquillo</h3>
-
-        {availableBench.length === 0 ? (
-          <p>Sin suplentes disponibles</p>
-        ) : (
-          availableBench.map((state) => {
-            const player = playersById.get(state.playerId);
-
-            if (!player) {
-              return null;
-            }
-
-            return (
-              <div className="bench-player" key={player.id}>
-                <span>{player.position}</span>
-                <strong>{player.shortName}</strong>
-                <small>{player.overall}</small>
-              </div>
-            );
-          })
-        )}
-      </div>
-    </article>
-  );
-}
