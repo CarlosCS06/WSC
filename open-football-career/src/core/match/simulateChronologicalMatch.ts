@@ -20,6 +20,26 @@ export interface ChronologicalMatchResult {
   events: MatchEvent[];
 }
 
+export interface SimulateMatchMinuteInput {
+  fixture: Fixture;
+  homeClub: Club;
+  awayClub: Club;
+  homeLineup: Lineup;
+  awayLineup: Lineup;
+  players: Player[];
+
+  minute: number;
+  playerStates: MatchPlayerState[];
+  incidentEvents: MatchEvent[];
+}
+
+export interface SimulatedMatchMinute {
+  events: MatchEvent[];
+  playerStates: MatchPlayerState[];
+  homeGoals: number;
+  awayGoals: number;
+}
+
 interface TeamContext {
   club: Club;
   opponent: Club;
@@ -27,6 +47,133 @@ interface TeamContext {
   playerStates: MatchPlayerState[];
   allPlayers: Player[];
   side: "HOME" | "AWAY";
+}
+
+export function simulateMatchMinute({
+  fixture,
+  homeClub,
+  awayClub,
+  homeLineup,
+  awayLineup,
+  players,
+  minute,
+  playerStates,
+  incidentEvents,
+}: SimulateMatchMinuteInput): SimulatedMatchMinute {
+  let nextPlayerStates = updatePlayerFatigue(
+    playerStates,
+    players,
+    1,
+  );
+
+  const events: MatchEvent[] = [];
+
+  const minuteIncidents = incidentEvents.filter(
+    (event) => event.minute === minute,
+  );
+
+  for (const incident of minuteIncidents) {
+    const result = applyMatchEvent(
+      nextPlayerStates,
+      incident,
+    );
+
+    nextPlayerStates = result.playerStates;
+    events.push(result.convertedEvent);
+  }
+
+  const homeStrength = calculateLiveTeamStrength({
+    clubId: homeClub.id,
+    players,
+    playerStates: nextPlayerStates,
+  });
+
+  const awayStrength = calculateLiveTeamStrength({
+    clubId: awayClub.id,
+    players,
+    playerStates: nextPlayerStates,
+  });
+
+  const attackingSide = selectPossessionTeam(
+    homeStrength,
+    awayStrength,
+  );
+
+  const context: TeamContext =
+    attackingSide === "HOME"
+      ? {
+          club: homeClub,
+          opponent: awayClub,
+          lineup: homeLineup,
+          playerStates: nextPlayerStates,
+          allPlayers: players,
+          side: "HOME",
+        }
+      : {
+          club: awayClub,
+          opponent: homeClub,
+          lineup: awayLineup,
+          playerStates: nextPlayerStates,
+          allPlayers: players,
+          side: "AWAY",
+        };
+
+  events.push({
+    id: `${fixture.id}_POSSESSION_${minute}`,
+    fixtureId: fixture.id,
+    minute,
+    second: 0,
+    type: "POSSESSION",
+    clubId: context.club.id,
+    durationSeconds: 60,
+    visible: false,
+    description: "",
+  });
+
+  const attackingStrength =
+    attackingSide === "HOME"
+      ? homeStrength
+      : awayStrength;
+
+  const defendingStrength =
+    attackingSide === "HOME"
+      ? awayStrength
+      : homeStrength;
+
+  const chanceProbability =
+    calculateChanceProbability(
+      attackingStrength,
+      defendingStrength,
+    );
+
+  let homeGoals = 0;
+  let awayGoals = 0;
+
+  if (Math.random() <= chanceProbability) {
+    const action = generateAttackingAction({
+      fixture,
+      minute,
+      context,
+      defendingStrength,
+    });
+
+    events.push(...action.events);
+
+    if (action.goal) {
+      if (attackingSide === "HOME") {
+        homeGoals += 1;
+      } else {
+        awayGoals += 1;
+      }
+    }
+  }
+
+  return {
+    events: events.sort(compareMatchEvents),
+    playerStates: nextPlayerStates,
+    homeGoals,
+    awayGoals,
+  };
 }
 
 export function simulateChronologicalMatch(

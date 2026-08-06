@@ -3,20 +3,20 @@ import { useEffect, useMemo, useState } from "react";
 import type { Club } from "../../domain/club";
 import type { Fixture } from "../../domain/fixture";
 import type { MatchEvent } from "../../domain/matchEvent";
+import type { IncrementalMatchState } from "../../domain/incrementalMatchState";
 import {
-  simulateMatchWithEvents,
-  type SimulatedMatchWithEvents,
-} from "../../core/match/simulateMatchWithEvents";
+  advanceIncrementalMatch,
+  createIncrementalMatch,
+  type IncrementalMatchContext,
+} from "../../core/match/incrementalMatchEngine";
 import type { Lineup } from "../../domain/lineup";
 import type { Player } from "../../domain/player";
 import type { MatchClockState, MatchSpeed } from "../../domain/matchClock";
 import type { MatchPlayerState } from "../../domain/matchPlayerState";
-import { createLivePlayerStates } from "../../core/match/createLivePlayerStates";
 import { applyMatchEvent } from "../../core/match/applyMatchEvent";
 import { selectCpuSubstitute } from "../../core/match/selectCpuSubstitute";
-
+import type { SimulatedMatchWithEvents } from "../../core/match/simulateMatchWithEvents";
 import { formatMatchClock } from "../../core/match/formatMatchClock";
-import { calculateAddedTime } from "../../core/match/calculateAddedTime";
 import type { MatchDecision } from "../../domain/matchDecision";
 import { InjurySubstitutionPanel } from "./InjurySubstitutionPanel";
 import type { TeamMatchState } from "../../domain/teamMatchState";
@@ -75,6 +75,12 @@ export function MatchPage({
 
   const currentMinute = Math.floor(clock.elapsedSeconds / 60);
 
+  const [engineState, setEngineState] =
+    useState<IncrementalMatchState | null>(null);
+
+  const [engineContext, setEngineContext] =
+    useState<IncrementalMatchContext | null>(null);
+
   const visibleEvents = useMemo(() => {
     if (!simulation) {
       return [];
@@ -113,6 +119,17 @@ export function MatchPage({
     const newlyProcessedIds: string[] = [];
 
     for (const event of newEvents) {
+      const alreadyAppliedByEngine =
+        event.type === "YELLOW_CARD" ||
+        event.type === "SECOND_YELLOW_CARD" ||
+        event.type === "RED_CARD" ||
+        event.type === "INJURY";
+
+      if (alreadyAppliedByEngine) {
+        newlyProcessedIds.push(event.id);
+        continue;
+      }
+
       const result = applyMatchEvent(
         nextPlayerStates,
         event,
@@ -183,10 +200,13 @@ export function MatchPage({
         (player) => player.id === event.playerId,
       );
 
+      const second = event.second ?? (clock.elapsedSeconds % 60);
+
       const substitutionEvent: MatchEvent = {
         id: `${fixture.id}_CPU_SUB_${event.id}`,
         fixtureId: fixture.id,
         minute: event.minute,
+        second,
         type: "SUBSTITUTION",
         clubId: event.clubId!,
         playerId: event.playerId!,
@@ -203,6 +223,27 @@ export function MatchPage({
 
       nextPlayerStates =
         substitutionResult.playerStates;
+
+      setEngineState((current) => {
+        if (!current) {
+          return current;
+        }
+
+        return {
+          ...current,
+          playerStates: substitutionResult.playerStates,
+          events: [
+            ...current.events,
+            substitutionEvent,
+          ].sort(
+            (first, second) =>
+              first.minute * 60 +
+              (first.second ?? 0) -
+              (second.minute * 60 +
+                (second.second ?? 0)),
+          ),
+        };
+      });
 
       nextEvents.push(substitutionEvent);
       nextCpuSubstitutionMinutes.add(minute);
@@ -267,7 +308,7 @@ export function MatchPage({
   );
 
   function handleStart() {
-    const result = simulateMatchWithEvents(
+    const created = createIncrementalMatch(
       fixture,
       homeClub,
       awayClub,
@@ -276,54 +317,44 @@ export function MatchPage({
       players,
     );
 
-    setPlayerStates(
-      createLivePlayerStates({
-        homeLineup,
-        awayLineup,
-        players,
-      }),
-    );
+    setEngineState(created.state);
+    setEngineContext(created.context);
+
+    setPlayerStates(created.state.playerStates);
+
+    setSimulation({
+      fixtureId: fixture.id,
+      homeGoals: 0,
+      awayGoals: 0,
+      events: created.state.events,
+    });
 
     setProcessedEventIds(new Set());
     setCpuSubstitutionMinutes(new Set());
-
-    const firstHalfAddedMinutes = calculateAddedTime({
-      events: result.events,
-      fromMinute: 0,
-      toMinute: 45,
-    });
-
-    const secondHalfAddedMinutes = calculateAddedTime({
-      events: result.events,
-      fromMinute: 46,
-      toMinute: 90,
-    });
-
-    setSimulation(result);
 
     setClock((current) => ({
       ...current,
       elapsedSeconds: 0,
       period: "FIRST_HALF",
-      firstHalfAddedMinutes,
-      secondHalfAddedMinutes,
+      firstHalfAddedMinutes: 0,
+      secondHalfAddedMinutes: 0,
     }));
 
     setTeamStates([
-    {
+      {
         clubId: homeClub.id,
         substitutionsUsed: 0,
         maximumSubstitutions: 5,
         substitutionWindowsUsed: 0,
         maximumSubstitutionWindows: 3,
-    },
-    {
+      },
+      {
         clubId: awayClub.id,
         substitutionsUsed: 0,
         maximumSubstitutions: 5,
         substitutionWindowsUsed: 0,
         maximumSubstitutionWindows: 3,
-    },
+      },
     ]);
   }
 
@@ -347,10 +378,13 @@ export function MatchPage({
       return;
     }
 
+    const second = clock.elapsedSeconds % 60;
+
     const substitutionEvent: MatchEvent = {
-      id: `${fixture.id}_USER_SUB_${pendingDecision.minute}`,
+      id: `${fixture.id}_USER_SUB_${pendingDecision.minute}_${second}`,
       fixtureId: fixture.id,
       minute: pendingDecision.minute,
+      second,
       type: "SUBSTITUTION" as const,
       clubId: managedClubId,
       playerId: injuredPlayer.id,
@@ -383,11 +417,32 @@ export function MatchPage({
     );
 
     const result = applyMatchEvent(
-    playerStates,
-    substitutionEvent,
+      playerStates,
+      substitutionEvent,
     );
 
     setPlayerStates(result.playerStates);
+
+    setEngineState((current) => {
+      if (!current) {
+        return current;
+      }
+
+      return {
+        ...current,
+        playerStates: result.playerStates,
+        events: [
+          ...current.events,
+          substitutionEvent,
+        ].sort(
+          (first, second) =>
+            first.minute * 60 +
+            (first.second ?? 0) -
+            (second.minute * 60 +
+              (second.second ?? 0)),
+        ),
+      };
+    });
   }
 
   function handleManualSubstitution(
@@ -411,11 +466,13 @@ export function MatchPage({
     }
 
     const minute = Math.floor(clock.elapsedSeconds / 60);
+    const second = clock.elapsedSeconds % 60;
 
     const event: MatchEvent = {
-      id: `${fixture.id}_USER_SUB_${minute}_${outgoingPlayerId}`,
+      id: `${fixture.id}_USER_SUB_${minute}_${second}_${outgoingPlayerId}`,
       fixtureId: fixture.id,
       minute,
+      second,
       type: "SUBSTITUTION",
       clubId: managedClubId,
       playerId: outgoingPlayerId,
@@ -428,6 +485,27 @@ export function MatchPage({
     const result = applyMatchEvent(playerStates, event);
 
     setPlayerStates(result.playerStates);
+
+    setEngineState((current) => {
+      if (!current) {
+        return current;
+      }
+
+      return {
+        ...current,
+        playerStates: result.playerStates,
+        events: [
+          ...current.events,
+          event,
+        ].sort(
+          (first, second) =>
+            first.minute * 60 +
+            (first.second ?? 0) -
+            (second.minute * 60 +
+              (second.second ?? 0)),
+        ),
+      };
+    });
 
     setSimulation({
       ...simulation,
@@ -533,10 +611,13 @@ export function MatchPage({
     return;
   }
 
+  const second = clock.elapsedSeconds % 60;
+
   const event: MatchEvent = {
-    id: `${fixture.id}_TACTICAL_SUB_${cpuClub.id}_${minute}`,
+    id: `${fixture.id}_TACTICAL_SUB_${cpuClub.id}_${minute}_${second}`,
     fixtureId: fixture.id,
     minute,
+    second,
     type: "SUBSTITUTION",
     clubId: cpuClub.id,
     playerId: outgoingPlayer.id,
@@ -553,6 +634,27 @@ export function MatchPage({
   );
 
   setPlayerStates(result.playerStates);
+
+  setEngineState((current) => {
+    if (!current) {
+      return current;
+    }
+
+    return {
+      ...current,
+      playerStates: result.playerStates,
+      events: [
+        ...current.events,
+        event,
+      ].sort(
+        (first, second) =>
+          first.minute * 60 +
+          (first.second ?? 0) -
+          (second.minute * 60 +
+            (second.second ?? 0)),
+      ),
+    };
+  });
 
   setSimulation((current) => {
     if (!current) {
@@ -594,6 +696,49 @@ export function MatchPage({
   players,
   fixture.id,
 ]);
+
+  useEffect(() => {
+    if (!engineState || !engineContext) {
+      return;
+    }
+
+    const clockMinute = Math.floor(
+      clock.elapsedSeconds / 60,
+    );
+
+    if (
+      clockMinute <= engineState.currentMinute ||
+      engineState.finished
+    ) {
+      return;
+    }
+
+    let nextState = engineState;
+
+    while (
+      nextState.currentMinute < clockMinute &&
+      !nextState.finished
+    ) {
+      nextState = advanceIncrementalMatch(
+        nextState,
+        engineContext,
+      );
+    }
+
+    setEngineState(nextState);
+    setPlayerStates(nextState.playerStates);
+
+    setSimulation({
+      fixtureId: nextState.fixtureId,
+      homeGoals: nextState.homeGoals,
+      awayGoals: nextState.awayGoals,
+      events: nextState.events,
+    });
+  }, [
+    clock.elapsedSeconds,
+    engineState,
+    engineContext,
+  ]);
 
   useEffect(() => {
     if (!simulation) {
@@ -860,21 +1005,32 @@ export function MatchPage({
               </section>
             )}
 
-            {clock.period === "FULL_TIME" && simulation && (
+            {clock.period === "FULL_TIME" && (
               <section className="full-time-panel">
                 <p className="menu-subtitle">
                   FINAL DEL PARTIDO
                 </p>
 
                 <h2>
-                  {homeClub.name} {simulation.homeGoals} -{" "}
-                  {simulation.awayGoals} {awayClub.name}
+                  {homeClub.name} {engineState?.homeGoals ?? currentScore.home} -{" "}
+                  {engineState?.awayGoals ?? currentScore.away} {awayClub.name}
                 </h2>
 
                 <button
                   className="primary-button"
                   type="button"
-                  onClick={() => onFinish(simulation)}
+                  onClick={() => {
+                    if (!engineState) {
+                      return;
+                    }
+
+                    onFinish({
+                      fixtureId: engineState.fixtureId,
+                      homeGoals: engineState.homeGoals,
+                      awayGoals: engineState.awayGoals,
+                      events: engineState.events,
+                    });
+                  }}
                 >
                   Ver resultados de la jornada
                 </button>
