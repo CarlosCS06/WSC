@@ -12,6 +12,7 @@ import {
   calculateLiveTeamStrength,
   type LiveTeamStrength,
 } from "./calculateLiveTeamStrength";
+import type { TeamMentality } from "../../domain/teamMentality";
 
 export interface ChronologicalMatchResult {
   fixtureId: string;
@@ -27,6 +28,8 @@ export interface SimulateMatchMinuteInput {
   homeLineup: Lineup;
   awayLineup: Lineup;
   players: Player[];
+  homeMentality: TeamMentality;
+  awayMentality: TeamMentality;
 
   minute: number;
   playerStates: MatchPlayerState[];
@@ -49,22 +52,126 @@ interface TeamContext {
   side: "HOME" | "AWAY";
 }
 
-export function simulateMatchMinute({
-  fixture,
-  homeClub,
-  awayClub,
-  homeLineup,
-  awayLineup,
-  players,
-  minute,
+  interface MentalityModifiers {
+  possession: number;
+  attackingChance: number;
+  defensiveExposure: number;
+  fatigue: number;
+  shotAccuracy: number;
+}
+
+function getMentalityModifiers(
+  mentality: TeamMentality,
+): MentalityModifiers {
+  switch (mentality) {
+    case "DEFENSIVE":
+      return {
+        possession: 0.92,
+        attackingChance: 0.78,
+        defensiveExposure: 0.75,
+        fatigue: 0.85,
+        shotAccuracy: 0.94,
+      };
+
+    case "ATTACKING":
+      return {
+        possession: 1.06,
+        attackingChance: 1.3,
+        defensiveExposure: 1.28,
+        fatigue: 1.22,
+        shotAccuracy: 1.04,
+      };
+
+    case "BALANCED":
+    default:
+      return {
+        possession: 1,
+        attackingChance: 1,
+        defensiveExposure: 1,
+        fatigue: 1,
+        shotAccuracy: 1,
+      };
+  }
+}
+
+interface ApplyMentalityFatigueInput {
+  playerStates: MatchPlayerState[];
+  homeClubId: string;
+  awayClubId: string;
+  homeMentality: TeamMentality;
+  awayMentality: TeamMentality;
+}
+
+function applyMentalityFatigue({
   playerStates,
-  incidentEvents,
-}: SimulateMatchMinuteInput): SimulatedMatchMinute {
+  homeClubId,
+  awayClubId,
+  homeMentality,
+  awayMentality,
+}: ApplyMentalityFatigueInput): MatchPlayerState[] {
+  const homeMultiplier =
+    getMentalityModifiers(homeMentality).fatigue;
+
+  const awayMultiplier =
+    getMentalityModifiers(awayMentality).fatigue;
+
+  return playerStates.map((state) => {
+    if (!state.isOnPitch || state.sentOff) {
+      return state;
+    }
+
+    const multiplier =
+      state.clubId === homeClubId
+        ? homeMultiplier
+        : state.clubId === awayClubId
+          ? awayMultiplier
+          : 1;
+
+    const extraFatigue =
+      Math.max(0, multiplier - 1) * 0.18;
+
+    const fatigueRecovery =
+      Math.max(0, 1 - multiplier) * 0.12;
+
+    return {
+      ...state,
+      fatigue: clamp(
+        state.fatigue +
+          extraFatigue -
+          fatigueRecovery,
+        0,
+        100,
+      ),
+    };
+  });
+}
+
+  export function simulateMatchMinute({
+    fixture,
+    homeClub,
+    awayClub,
+    homeLineup,
+    awayLineup,
+    players,
+    minute,
+    playerStates,
+    incidentEvents,
+    homeMentality,
+    awayMentality,
+  }: SimulateMatchMinuteInput): SimulatedMatchMinute {
   let nextPlayerStates = updatePlayerFatigue(
     playerStates,
     players,
     1,
   );
+
+  nextPlayerStates = applyMentalityFatigue({
+    playerStates: nextPlayerStates,
+    homeClubId: homeClub.id,
+    awayClubId: awayClub.id,
+    homeMentality,
+    awayMentality,
+  });
 
   const events: MatchEvent[] = [];
 
@@ -94,9 +201,17 @@ export function simulateMatchMinute({
     playerStates: nextPlayerStates,
   });
 
+  const homeModifiers =
+    getMentalityModifiers(homeMentality);
+
+  const awayModifiers =
+    getMentalityModifiers(awayMentality);
+
   const attackingSide = selectPossessionTeam(
     homeStrength,
     awayStrength,
+    homeModifiers,
+    awayModifiers,
   );
 
   const context: TeamContext =
@@ -140,10 +255,22 @@ export function simulateMatchMinute({
       ? awayStrength
       : homeStrength;
 
+  const attackingModifiers =
+    attackingSide === "HOME"
+      ? homeModifiers
+      : awayModifiers;
+
+  const defendingModifiers =
+    attackingSide === "HOME"
+      ? awayModifiers
+      : homeModifiers;
+
   const chanceProbability =
     calculateChanceProbability(
       attackingStrength,
       defendingStrength,
+      attackingModifiers,
+      defendingModifiers,
     );
 
   let homeGoals = 0;
@@ -155,6 +282,7 @@ export function simulateMatchMinute({
       minute,
       context,
       defendingStrength,
+      attackingModifiers,
     });
 
     events.push(...action.events);
@@ -183,6 +311,8 @@ export function simulateChronologicalMatch(
   homeLineup: Lineup,
   awayLineup: Lineup,
   players: Player[],
+  homeMentality: TeamMentality = "BALANCED",
+  awayMentality: TeamMentality = "BALANCED",
 ): ChronologicalMatchResult {
   let playerStates = createLivePlayerStates({
     homeLineup,
@@ -232,6 +362,14 @@ export function simulateChronologicalMatch(
       1,
     );
 
+    playerStates = applyMentalityFatigue({
+      playerStates,
+      homeClubId: homeClub.id,
+      awayClubId: awayClub.id,
+      homeMentality,
+      awayMentality,
+    });
+
     const homeStrength = calculateLiveTeamStrength({
       clubId: homeClub.id,
       players,
@@ -244,9 +382,17 @@ export function simulateChronologicalMatch(
       playerStates,
     });
 
+    const homeModifiers =
+      getMentalityModifiers(homeMentality);
+
+    const awayModifiers =
+      getMentalityModifiers(awayMentality);
+
     const attackingSide = selectPossessionTeam(
       homeStrength,
       awayStrength,
+      homeModifiers,
+      awayModifiers,
     );
 
     const context: TeamContext =
@@ -290,10 +436,22 @@ export function simulateChronologicalMatch(
         ? awayStrength
         : homeStrength;
 
+    const attackingModifiers =
+      attackingSide === "HOME"
+        ? homeModifiers
+        : awayModifiers;
+
+    const defendingModifiers =
+      attackingSide === "HOME"
+        ? awayModifiers
+        : homeModifiers;
+
     const chanceProbability =
       calculateChanceProbability(
         attackingStrength,
         defendingStrength,
+        attackingModifiers,
+        defendingModifiers,
       );
 
     if (Math.random() > chanceProbability) {
@@ -305,6 +463,7 @@ export function simulateChronologicalMatch(
       minute,
       context,
       defendingStrength,
+      attackingModifiers,
     });
 
     events.push(...action.events);
@@ -358,6 +517,7 @@ interface GenerateAttackingActionInput {
   minute: number;
   context: TeamContext;
   defendingStrength: LiveTeamStrength;
+  attackingModifiers: MentalityModifiers;
 }
 
 function generateAttackingAction({
@@ -365,6 +525,7 @@ function generateAttackingAction({
   minute,
   context,
   defendingStrength,
+  attackingModifiers,
 }: GenerateAttackingActionInput): {
   events: MatchEvent[];
   goal: boolean;
@@ -431,10 +592,15 @@ function generateAttackingAction({
   const shotId =
     `${fixture.id}_SHOT_${context.side}_${minute}_${second}`;
 
-  const onTargetProbability = calculateOnTargetProbability(
-    attacker,
-    context.opponent,
-  );
+  const onTargetProbability =
+    clamp(
+      calculateOnTargetProbability(
+        attacker,
+        context.opponent,
+      ) * attackingModifiers.shotAccuracy,
+      0.2,
+      0.75,
+    );
 
   if (Math.random() > onTargetProbability) {
     events.push({
@@ -638,6 +804,8 @@ function generatePenaltyAction({
 function selectPossessionTeam(
   home: LiveTeamStrength,
   away: LiveTeamStrength,
+  homeModifiers: MentalityModifiers,
+  awayModifiers: MentalityModifiers,
 ): "HOME" | "AWAY" {
   const homeNumericalFactor =
     home.playersOnPitch / 11;
@@ -645,26 +813,26 @@ function selectPossessionTeam(
   const awayNumericalFactor =
     away.playersOnPitch / 11;
 
-  const homeStrength =
+  const homeValue =
     home.midfield *
     homeNumericalFactor *
+    homeModifiers.possession *
     1.035;
 
-  const awayStrength =
+  const awayValue =
     away.midfield *
-    awayNumericalFactor;
+    awayNumericalFactor *
+    awayModifiers.possession;
 
-  const totalStrength =
-    homeStrength + awayStrength;
+  const total = homeValue + awayValue;
 
-  if (totalStrength <= 0) {
+  if (total <= 0) {
     return Math.random() < 0.5
       ? "HOME"
       : "AWAY";
   }
 
-  return Math.random() <
-    homeStrength / totalStrength
+  return Math.random() < homeValue / total
     ? "HOME"
     : "AWAY";
 }
@@ -672,23 +840,33 @@ function selectPossessionTeam(
 function calculateChanceProbability(
   attacking: LiveTeamStrength,
   defending: LiveTeamStrength,
+  attackingModifiers: MentalityModifiers,
+  defendingModifiers: MentalityModifiers,
 ): number {
   const numericalAdvantage =
     attacking.playersOnPitch -
     defending.playersOnPitch;
 
-  const difference =
+  const strengthDifference =
     attacking.attack +
     attacking.midfield * 0.35 -
     defending.defence -
     defending.midfield * 0.2;
 
-  return clamp(
+  const baseProbability =
     0.12 +
-      difference / 420 +
-      numericalAdvantage * 0.018,
-    0.045,
-    0.3,
+    strengthDifference / 420 +
+    numericalAdvantage * 0.018;
+
+  const tacticalProbability =
+    baseProbability *
+    attackingModifiers.attackingChance *
+    defendingModifiers.defensiveExposure;
+
+  return clamp(
+    tacticalProbability,
+    0.035,
+    0.34,
   );
 }
 

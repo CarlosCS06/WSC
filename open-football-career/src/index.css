@@ -865,4 +865,51 @@ button,
     padding: 12px;
   }
 }
+
+.mentality-controls {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #dbe5de;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.mentality-controls strong {
+  font-size: 14px;
+  color: #59645e;
+}
+
+.mentality-buttons {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.mentality-button {
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid #cfdad3;
+  border-radius: 10px;
+  background: #f5f8f6;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.mentality-button-active {
+  border-color: #168447;
+  background: #e4f5e9;
+  color: #126a39;
+}
+
+.mentality-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+@media (max-width: 520px) {
+  .mentality-buttons {
+    grid-template-columns: 1fr;
+  }
+}
 }

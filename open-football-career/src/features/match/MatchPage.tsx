@@ -25,6 +25,11 @@ import { ManualSubstitutionPanel } from "./ManualSubstitutionPanel";
 import { LiveLineupColumn } from "./LiveLineupColumn";
 import { calculateLiveStatistics } from "../../core/match/calculateLiveStatistics";
 import { LiveMatchStatistics } from "./LiveMatchStatistics";
+import type { TeamMentality } from "../../domain/teamMentality";
+import {
+  changeTeamMentality,
+} from "../../core/match/incrementalMatchEngine";
+import { MentalityControls } from "./MentalityControls";
 
 interface MatchPageProps {
   fixture: Fixture;
@@ -62,6 +67,9 @@ export function MatchPage({
   const [teamStates, setTeamStates] = useState<TeamMatchState[]>([]);
     
   const [cpuSubstitutionMinutes, setCpuSubstitutionMinutes] = useState<Set<number>>(new Set());
+
+  const [managedMentality, setManagedMentality] =
+  useState<TeamMentality>("BALANCED");
 
   const [clock, setClock] = useState<MatchClockState>({
     elapsedSeconds: 0,
@@ -332,6 +340,8 @@ export function MatchPage({
     setProcessedEventIds(new Set());
     setCpuSubstitutionMinutes(new Set());
 
+    setManagedMentality("BALANCED");
+
     setClock((current) => ({
       ...current,
       elapsedSeconds: 0,
@@ -356,6 +366,24 @@ export function MatchPage({
         maximumSubstitutionWindows: 3,
       },
     ]);
+  }
+
+  function handleMentalityChange(
+    mentality: TeamMentality,
+  ) {
+    setManagedMentality(mentality);
+
+    setEngineContext((current) => {
+      if (!current) {
+        return current;
+      }
+
+      return changeTeamMentality(
+        current,
+        managedClubId,
+        mentality,
+      );
+    });
   }
 
   function handleInjurySubstitution(
@@ -855,6 +883,17 @@ export function MatchPage({
           </div>
 
           {simulation && clock.period !== "FULL_TIME" && (
+            <MentalityControls
+              mentality={managedMentality}
+              disabled={
+                Boolean(pendingDecision) ||
+                manualSubstitutionOpen
+              }
+              onChange={handleMentalityChange}
+            />
+          )}
+
+          {simulation && clock.period !== "FULL_TIME" && (
             <>
               {clock.period !== "HALF_TIME" && (
                 <div className="speed-controls">
@@ -1070,4 +1109,4 @@ function calculateVisibleScore(
 
   return { home, away };
 }
-
+

@@ -8,6 +8,10 @@ import type { Player } from "../../domain/player";
 import { createLivePlayerStates } from "./createLivePlayerStates";
 import { generateMatchIncidents } from "./generateMatchIncidents";
 import { simulateMatchMinute } from "./simulateChronologicalMatch";
+import type {
+  MatchMentalities,
+  TeamMentality,
+} from "../../domain/teamMentality";
 
 export interface IncrementalMatchContext {
   fixture: Fixture;
@@ -17,6 +21,7 @@ export interface IncrementalMatchContext {
   awayLineup: Lineup;
   players: Player[];
   incidentEvents: MatchEvent[];
+  mentalities: MatchMentalities;
 }
 
 export function createIncrementalMatch(
@@ -26,6 +31,13 @@ export function createIncrementalMatch(
   homeLineup: Lineup,
   awayLineup: Lineup,
   players: Player[],
+  mentalities: {
+    home: TeamMentality;
+    away: TeamMentality;
+  } = {
+    home: "BALANCED",
+    away: "BALANCED",
+  },
 ): {
   state: IncrementalMatchState;
   context: IncrementalMatchContext;
@@ -72,6 +84,7 @@ export function createIncrementalMatch(
       awayLineup,
       players,
       incidentEvents,
+      mentalities,
     },
   };
 }
@@ -106,6 +119,8 @@ export function advanceIncrementalMatch(
     minute: nextMinute,
     playerStates: state.playerStates,
     incidentEvents: unprocessedIncidents,
+    homeMentality: context.mentalities.home,
+    awayMentality: context.mentalities.away,
   });
 
   const processedIncidentIds = [
@@ -216,4 +231,32 @@ function compareEvents(
     second.minute * 60 + (second.second ?? 0);
 
   return firstSeconds - secondSeconds;
+}
+
+export function changeTeamMentality(
+  context: IncrementalMatchContext,
+  clubId: string,
+  mentality: TeamMentality,
+): IncrementalMatchContext {
+  if (clubId === context.homeClub.id) {
+    return {
+      ...context,
+      mentalities: {
+        ...context.mentalities,
+        home: mentality,
+      },
+    };
+  }
+
+  if (clubId === context.awayClub.id) {
+    return {
+      ...context,
+      mentalities: {
+        ...context.mentalities,
+        away: mentality,
+      },
+    };
+  }
+
+  return context;
 }
