@@ -327,7 +327,7 @@ export function MatchPage({
 
     setEngineState(created.state);
     setEngineContext(created.context);
-
+    setManagedMentality("BALANCED");
     setPlayerStates(created.state.playerStates);
 
     setSimulation({
@@ -339,8 +339,6 @@ export function MatchPage({
 
     setProcessedEventIds(new Set());
     setCpuSubstitutionMinutes(new Set());
-
-    setManagedMentality("BALANCED");
 
     setClock((current) => ({
       ...current,
@@ -1109,4 +1107,3 @@ function calculateVisibleScore(
 
   return { home, away };
 }
-
